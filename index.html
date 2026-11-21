@@ -11,26 +11,49 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=JetBrains+Mono:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-  <!-- Dual-CDN MQTT.js Loader for Automatic Standalone Cloud Fallback -->
+  <!-- Multi-CDN MQTT.js Loader with Timeout Protection for Mobile Networks -->
   <script>
     window.__mqttReadyPromise = new Promise((resolve) => {
       if (window.mqtt) {
         resolve(window.mqtt);
         return;
       }
-      const primary = document.createElement('script');
-      primary.src = 'https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js';
-      primary.async = true;
-      primary.onload = () => resolve(window.mqtt || null);
-      primary.onerror = () => {
-        const fallback = document.createElement('script');
-        fallback.src = 'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js';
-        fallback.async = true;
-        fallback.onload = () => resolve(window.mqtt || null);
-        fallback.onerror = () => resolve(null);
-        document.head.appendChild(fallback);
+      let settled = false;
+      const done = (lib) => {
+        if (!settled) {
+          settled = true;
+          resolve(lib || null);
+        }
       };
-      document.head.appendChild(primary);
+
+      // Never hang forever on slow mobile networks
+      const hardTimeout = setTimeout(() => done(window.mqtt || null), 4500);
+
+      const cdns = [
+        'https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js',
+        'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.10.1/mqtt.min.js'
+      ];
+
+      function tryLoad(idx) {
+        if (settled) return;
+        if (idx >= cdns.length) {
+          clearTimeout(hardTimeout);
+          done(null);
+          return;
+        }
+        const s = document.createElement('script');
+        s.src = cdns[idx];
+        s.async = true;
+        s.onload = () => {
+          clearTimeout(hardTimeout);
+          done(window.mqtt || null);
+        };
+        s.onerror = () => tryLoad(idx + 1);
+        document.head.appendChild(s);
+      }
+
+      tryLoad(0);
     });
   </script>
 
@@ -47,8 +70,8 @@
       --orb-1: rgba(0, 245, 212, 0.28);
       --orb-2: rgba(255, 42, 133, 0.26);
       --orb-3: rgba(56, 189, 248, 0.18);
-      --glass-bg: rgba(12, 19, 42, 0.76);
-      --glass-card: rgba(19, 29, 62, 0.66);
+      --glass-bg: rgba(12, 19, 42, 0.78);
+      --glass-card: rgba(19, 29, 62, 0.68);
       --glass-border: rgba(0, 245, 212, 0.3);
       --accent-primary: #00f5d4;
       --accent-secondary: #ff2a85;
@@ -92,8 +115,8 @@
       --orb-1: rgba(45, 212, 191, 0.3);
       --orb-2: rgba(56, 189, 248, 0.26);
       --orb-3: rgba(129, 140, 248, 0.2);
-      --glass-bg: rgba(9, 23, 44, 0.74);
-      --glass-card: rgba(15, 35, 64, 0.64);
+      --glass-bg: rgba(9, 23, 44, 0.76);
+      --glass-card: rgba(15, 35, 64, 0.66);
       --glass-border: rgba(45, 212, 191, 0.34);
       --accent-primary: #2dd4bf;
       --accent-secondary: #38bdf8;
@@ -501,7 +524,7 @@
                 </div>
               </div>
               <button id="btn-force-resync" type="button" class="btn-glass w-full mt-3 py-2 rounded-xl text-[11px] font-extrabold uppercase tracking-wider">
-                🔄 Force Re-Sync Now
+                🔄 Reconnect &amp; Re-Sync Now
               </button>
             </div>
           </div>
@@ -701,7 +724,7 @@
             </div>
             <h3 class="font-display text-xl font-bold group-hover:text-white">CREATE ONLINE ROOM</h3>
             <p class="text-xs text-slate-300 mt-1.5 leading-relaxed">
-              Open a persistent multi-round lobby! Everyone can take turns setting custom secret numbers &amp; spectating without creating new rooms.
+              Open a persistent multi-round lobby! Everyone takes turns setting custom secret numbers &amp; spectating without creating new rooms.
             </p>
           </div>
           <div class="mt-5 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider" style="color: var(--accent-primary);">
@@ -841,7 +864,7 @@
         </div>
 
         <h2 class="font-display text-xl sm:text-2xl font-bold text-slate-100">Room Code &amp; Multi-Round Lobby</h2>
-        <p class="text-xs text-slate-300 mt-0.5">Everyone can take turns setting a custom secret number &amp; spectating in this exact room!</p>
+        <p class="text-xs text-slate-300 mt-0.5">Everyone takes turns setting a custom secret number &amp; spectating in this exact room!</p>
 
         <!-- 5 Large Glowing Room Code Tiles -->
         <div id="lobby-code-tiles" class="mt-4 flex items-center justify-center gap-2 sm:gap-3">
@@ -893,7 +916,7 @@
         </div>
       </div>
 
-      <!-- YOUR TURN: Secret Master Custom Secret Card (Shown to current secretMasterUid, Host or Guest!) -->
+      <!-- YOUR TURN: Secret Master Custom Secret Card (Shown to current secretMasterId, Host or Guest!) -->
       <div id="lobby-secret-master-card" class="hidden glass-panel rounded-3xl p-5 sm:p-6 border-2 animate-pop-in" style="border-color: var(--accent-primary); box-shadow: var(--glow-primary);">
         <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div>
@@ -1173,6 +1196,29 @@
                 100 numbers left
               </span>
             </div>
+            <div class="relative h-4 w-full rounded-full bg-black/55 border border-white/10 overflow-hidden">
+              <div id="range-bar-active-fill"
+                   class="absolute top-0 bottom-0 rounded-full transition-all duration-300"
+                   style="left: 0%; width: 100%; background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary)); box-shadow: var(--glow-primary);">
+              </div>
+            </div>
+            <div class="flex justify-between font-mono-num text-[11px] font-bold text-slate-400 mt-1">
+              <span id="range-min-tick">1</span>
+              <span id="range-max-tick">100</span>
+            </div>
+          </div>
+
+          <!-- Temperature Proximity & Directional Hint Banner -->
+          <div id="proximity-radar-card" class="glass-subcard rounded-2xl p-4 sm:p-5 text-center border border-white/15">
+            <div id="radar-icon" class="text-3xl sm:text-4xl mb-1">📡</div>
+            <div id="radar-headline" class="font-display text-xl sm:text-2xl font-bold tracking-wide text-white">
+              READY TO SCAN
+            </div>
+            <p id="radar-subtext" class="text-xs sm:text-sm text-slate-300 mt-1">
+              Enter your first number below to lock onto the secret target!
+            </p>
+          </div>
+
           <!-- Number Input & Quick-Adjust + Touch Numpad Controls -->
           <div id="arena-controls-wrapper" class="space-y-2.5">
             <div class="flex items-center gap-2">
@@ -1378,22 +1424,9 @@
   </div>
 
   <!-- =====================================================================
-       APPLICATION MODULE SCRIPT (FIREBASE v11 PRIMARY + MQTT STATE/EVENTS)
+       APPLICATION MODULE SCRIPT (MOBILE-OPTIMIZED DUAL CLOUD + TURN ROTATION)
        ===================================================================== -->
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import {
-      getFirestore,
-      doc,
-      getDoc,
-      setDoc,
-      updateDoc,
-      onSnapshot,
-      collection,
-      deleteField
-    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
     /* ===================================================================
        1. SAFE STORAGE & CLONE HELPERS
        =================================================================== */
@@ -1627,17 +1660,17 @@
     const audio = new PlayfulAudioEngine();
 
     /* ===================================================================
-       3. DUAL CLOUD MULTIPLAYER ENGINE
-          - Primary: Firebase v11 Firestore (artifacts/{appId}/public/data/gtn_rooms/{roomCode})
-          - Standalone Fallback: MQTT over WSS (wss://broker.emqx.io:8884/mqtt ->
-            wss://broker.hivemq.com:8884/mqtt) + BroadcastChannel('gtn_local_sync')
-            with separated /state (retain: true) & /events (retain: false),
-            deduplicated event IDs, and 2.5s host heartbeat.
+       3. MOBILE-RESILIENT DUAL CLOUD MULTIPLAYER ENGINE
+          - Dynamic Firebase v11 import (only loaded when __firebase_config exists)
+          - Parallel multi-port MQTT over WSS race (ports 443, 8084, 8884)
+            so mobile carriers/Wi-Fi connect immediately without stalling
+          - BroadcastChannel('gtn_local_sync') cross-tab mirror
        =================================================================== */
     const MQTT_PREFIX = 'gtn_snehashis_arena_v4';
     const MQTT_BROKERS = [
-      { name: 'EMQX WSS', url: 'wss://broker.emqx.io:8884/mqtt' },
-      { name: 'HiveMQ WSS', url: 'wss://broker.hivemq.com:8884/mqtt' }
+      { name: 'Eclipse WSS:443', url: 'wss://mqtt.eclipseprojects.io:443/mqtt' },
+      { name: 'EMQX WSS:8084', url: 'wss://broker.emqx.io:8084/mqtt' },
+      { name: 'HiveMQ WSS:8884', url: 'wss://broker.hivemq.com:8884/mqtt' }
     ];
 
     function mqttStateTopic(code) {
@@ -1656,9 +1689,9 @@
         this.db = null;
         this.auth = null;
         this.user = null;
+        this.fbFns = null;
 
         this.mqttClient = null;
-        this.mqttBrokerIdx = 0;
         this.stateSubs = new Map();
         this.eventSubs = new Map();
         this.retainedCache = new Map();
@@ -1713,19 +1746,35 @@
         const hasFirebase = typeof window.__firebase_config !== 'undefined' && Boolean(window.__firebase_config);
         if (hasFirebase) {
           try {
+            const [fbAppMod, fbAuthMod, fbStoreMod] = await Promise.all([
+              import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"),
+              import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"),
+              import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js")
+            ]);
+
+            this.fbFns = {
+              doc: fbStoreMod.doc,
+              getDoc: fbStoreMod.getDoc,
+              setDoc: fbStoreMod.setDoc,
+              updateDoc: fbStoreMod.updateDoc,
+              onSnapshot: fbStoreMod.onSnapshot,
+              collection: fbStoreMod.collection,
+              deleteField: fbStoreMod.deleteField
+            };
+
             const rawCfg = window.__firebase_config;
             const firebaseConfig = typeof rawCfg === 'string' ? JSON.parse(rawCfg) : rawCfg;
             this.appId = (typeof window.__app_id !== 'undefined' && window.__app_id) ? String(window.__app_id) : 'default-app-id';
 
-            const fbApp = initializeApp(firebaseConfig);
-            this.auth = getAuth(fbApp);
-            this.db = getFirestore(fbApp);
+            const fbApp = fbAppMod.initializeApp(firebaseConfig);
+            this.auth = fbAuthMod.getAuth(fbApp);
+            this.db = fbStoreMod.getFirestore(fbApp);
 
             if (typeof window.__initial_auth_token !== 'undefined' && window.__initial_auth_token) {
-              const cred = await signInWithCustomToken(this.auth, window.__initial_auth_token);
+              const cred = await fbAuthMod.signInWithCustomToken(this.auth, window.__initial_auth_token);
               this.user = cred.user;
             } else {
-              const cred = await signInAnonymously(this.auth);
+              const cred = await fbAuthMod.signInAnonymously(this.auth);
               this.user = cred.user;
             }
 
@@ -1751,86 +1800,101 @@
         const mqttLib = await window.__mqttReadyPromise;
         if (!mqttLib || typeof mqttLib.connect !== 'function') {
           this.ready = true;
-          this.updateConnectionUI('online', '🟢 Local Tab Sync', 'BroadcastChannel Local', 'Cross-Tab Ready');
+          this.updateConnectionUI('online', '🟢 Online (Local)', 'Cross-Tab Local Sync', 'Ready');
           return;
         }
-        this.connectMqttBroker(mqttLib);
+        this.raceMqttBrokers(mqttLib);
       }
 
-      connectMqttBroker(mqttLib) {
+      raceMqttBrokers(mqttLib) {
         if (this.mqttClient) {
           try { this.mqttClient.end(true); } catch (_) {}
           this.mqttClient = null;
         }
 
-        const broker = MQTT_BROKERS[this.mqttBrokerIdx % MQTT_BROKERS.length];
-        const clientId = 'gtn4_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now().toString(36).slice(-4);
-        let settled = false;
+        let winnerChosen = false;
+        const candidates = [];
 
-        const failoverTimer = setTimeout(() => {
-          if (!settled) {
-            this.mqttBrokerIdx = (this.mqttBrokerIdx + 1) % MQTT_BROKERS.length;
-            this.updateConnectionUI('reconnecting', '🔴 Reconnecting...', broker.name, 'Switching Broker...');
-            this.connectMqttBroker(mqttLib);
-          }
-        }, 5500);
-
-        try {
-          const client = mqttLib.connect(broker.url, {
-            clientId,
-            clean: true,
-            connectTimeout: 5000,
-            reconnectPeriod: 2500,
-            keepalive: 25
-          });
-          this.mqttClient = client;
-
-          client.on('connect', () => {
-            settled = true;
-            clearTimeout(failoverTimer);
+        // Failsafe: if mobile network blocks all external WSS ports, mark local-ready in 5s
+        const overallFallbackTimer = setTimeout(() => {
+          if (!winnerChosen) {
             this.ready = true;
-            this.updateConnectionUI('online', '🟢 Online', `MQTT (${broker.name})`, 'Connected (State + Events)');
-            this.stateSubs.forEach((_, code) => {
+            this.updateConnectionUI('online', '🟢 Online (Relay Retry)', 'Auto-Reconnecting WSS', 'Local + Background Retry');
+          }
+        }, 5000);
+
+        MQTT_BROKERS.forEach((broker, idx) => {
+          const clientId = `gtn4_${idx}_${Math.random().toString(36).slice(2, 9)}_${Date.now().toString(36).slice(-4)}`;
+          try {
+            const client = mqttLib.connect(broker.url, {
+              clientId,
+              clean: true,
+              connectTimeout: 6000,
+              reconnectPeriod: 2500,
+              keepalive: 25
+            });
+            candidates.push(client);
+
+            client.on('connect', () => {
+              if (!winnerChosen) {
+                winnerChosen = true;
+                clearTimeout(overallFallbackTimer);
+                this.mqttClient = client;
+
+                // Close losing broker candidates
+                candidates.forEach(c => {
+                  if (c !== client) {
+                    try { c.end(true); } catch (_) {}
+                  }
+                });
+
+                this.ready = true;
+                this.updateConnectionUI('online', '🟢 Online', broker.name, 'Connected (State + Events)');
+                this.resubscribeAllMqttTopics();
+              } else if (this.mqttClient === client) {
+                this.ready = true;
+                this.updateConnectionUI('online', '🟢 Online', broker.name, 'Reconnected');
+                this.resubscribeAllMqttTopics();
+              }
+            });
+
+            client.on('reconnect', () => {
+              if (this.mqttClient === client) {
+                this.updateConnectionUI('reconnecting', '🔴 Reconnecting...', broker.name, 'Reconnecting...');
+              }
+            });
+
+            client.on('offline', () => {
+              if (this.mqttClient === client) {
+                this.updateConnectionUI('reconnecting', '🔴 Reconnecting...', broker.name, 'Offline');
+              }
+            });
+
+            client.on('message', (topic, buf) => {
+              if (this.mqttClient !== client) return;
               try {
-                client.subscribe(mqttStateTopic(code), { qos: 1 });
-                client.subscribe(mqttEventsTopic(code), { qos: 1 });
+                const parsed = JSON.parse(buf.toString());
+                if (!parsed) return;
+                if (topic.endsWith('/state') && parsed.code) {
+                  this.retainedCache.set(parsed.code, parsed);
+                  this.emitState(parsed.code, parsed);
+                } else if (topic.endsWith('/events') && parsed.code && parsed.eventId) {
+                  this.handleIncomingEvent(parsed.code, parsed);
+                }
               } catch (_) {}
             });
-          });
+          } catch (_) {}
+        });
+      }
 
-          client.on('reconnect', () => {
-            this.updateConnectionUI('reconnecting', '🔴 Reconnecting...', `MQTT (${broker.name})`, 'Reconnecting...');
-          });
-
-          client.on('offline', () => {
-            this.updateConnectionUI('reconnecting', '🔴 Reconnecting...', `MQTT (${broker.name})`, 'Offline');
-          });
-
-          client.on('error', () => {
-            if (!settled) {
-              clearTimeout(failoverTimer);
-              this.mqttBrokerIdx = (this.mqttBrokerIdx + 1) % MQTT_BROKERS.length;
-              this.connectMqttBroker(mqttLib);
-            }
-          });
-
-          client.on('message', (topic, buf) => {
-            try {
-              const parsed = JSON.parse(buf.toString());
-              if (!parsed) return;
-              if (topic.endsWith('/state') && parsed.code) {
-                this.retainedCache.set(parsed.code, parsed);
-                this.emitState(parsed.code, parsed);
-              } else if (topic.endsWith('/events') && parsed.code && parsed.eventId) {
-                this.handleIncomingEvent(parsed.code, parsed);
-              }
-            } catch (_) {}
-          });
-        } catch (_) {
-          clearTimeout(failoverTimer);
-          this.ready = true;
-          this.updateConnectionUI('online', '🟢 Local Tab Sync', 'BroadcastChannel Local', 'Cross-Tab Ready');
-        }
+      resubscribeAllMqttTopics() {
+        if (!this.mqttClient || !this.mqttClient.connected) return;
+        this.stateSubs.forEach((_, code) => {
+          try {
+            this.mqttClient.subscribe(mqttStateTopic(code), { qos: 1 });
+            this.mqttClient.subscribe(mqttEventsTopic(code), { qos: 1 });
+          } catch (_) {}
+        });
       }
 
       handleIncomingEvent(code, eventObj) {
@@ -1889,14 +1953,14 @@
       }
 
       getRoomDocRef(roomCode) {
-        return doc(this.db, 'artifacts', this.appId, 'public', 'data', 'gtn_rooms', roomCode);
+        return this.fbFns.doc(this.db, 'artifacts', this.appId, 'public', 'data', 'gtn_rooms', roomCode);
       }
 
       startFirebaseLobbyDiscovery() {
-        if (this.mode !== 'firebase' || !this.db || !this.auth?.currentUser) return;
+        if (this.mode !== 'firebase' || !this.db || !this.auth?.currentUser || !this.fbFns) return;
         try {
-          const colRef = collection(this.db, 'artifacts', this.appId, 'public', 'data', 'gtn_rooms');
-          onSnapshot(colRef, (snapshot) => {
+          const colRef = this.fbFns.collection(this.db, 'artifacts', this.appId, 'public', 'data', 'gtn_rooms');
+          this.fbFns.onSnapshot(colRef, (snapshot) => {
             const waitingRooms = [];
             const cutoff = Date.now() - 1000 * 60 * 45;
             snapshot.forEach(docSnap => {
@@ -1917,7 +1981,7 @@
         if (this.mode === 'firebase') {
           if (!this.auth?.currentUser) throw new Error('Cloud authentication not ready yet.');
           const roomRef = this.getRoomDocRef(roomCode);
-          await setDoc(roomRef, roomData);
+          await this.fbFns.setDoc(roomRef, roomData);
           return this.subscribeRoom(roomCode, onStateUpdate, onEvent, onError);
         } else {
           const unsub = this.subscribeRoom(roomCode, onStateUpdate, onEvent, onError);
@@ -1935,7 +1999,7 @@
             return { ok: false, reason: 'Cloud connection still initializing. Please try again in a second!' };
           }
           const roomRef = this.getRoomDocRef(cleanCode);
-          const snap = await getDoc(roomRef);
+          const snap = await this.fbFns.getDoc(roomRef);
           if (!snap.exists()) {
             return { ok: false, reason: `Room "${cleanCode}" not found! Double-check the 5-character code.` };
           }
@@ -1960,7 +2024,7 @@
             privateHigh: existingData.max
           };
 
-          await updateDoc(roomRef, {
+          await this.fbFns.updateDoc(roomRef, {
             [`players.${playerObj.id}`]: finalPlayer,
             rotationOrder: nextRotationOrder,
             updatedAt: Date.now()
@@ -2010,6 +2074,10 @@
                     if (latest && !latest.players?.[playerObj.id]) {
                       latest.players = latest.players || {};
                       latest.players[playerObj.id] = optimistic.players[playerObj.id];
+                      const ord = Array.isArray(latest.rotationOrder) ? latest.rotationOrder : [];
+                      if (!ord.includes(playerObj.id)) {
+                        latest.rotationOrder = [...ord, playerObj.id];
+                      }
                       latest.updatedAt = Date.now();
                       this.publishMqttState(latest);
                     }
@@ -2037,7 +2105,7 @@
         if (this.mode === 'firebase') {
           if (!this.auth?.currentUser) return () => {};
           const roomRef = this.getRoomDocRef(cleanCode);
-          return onSnapshot(
+          return this.fbFns.onSnapshot(
             roomRef,
             (snap) => {
               if (snap.exists()) onStateUpdate(snap.data());
@@ -2085,7 +2153,7 @@
         const cleanCode = String(roomCode || '').trim().toUpperCase();
         if (this.mode === 'firebase') {
           if (!this.auth?.currentUser) return;
-          await updateDoc(this.getRoomDocRef(cleanCode), firestorePatch);
+          await this.fbFns.updateDoc(this.getRoomDocRef(cleanCode), firestorePatch);
         } else if (fullMergedRoom) {
           this.publishMqttState(fullMergedRoom);
           this.emitState(cleanCode, fullMergedRoom);
@@ -2097,7 +2165,7 @@
         if (!cleanCode) return null;
         if (this.mode === 'firebase') {
           if (!this.auth?.currentUser) return null;
-          const snap = await getDoc(this.getRoomDocRef(cleanCode));
+          const snap = await this.fbFns.getDoc(this.getRoomDocRef(cleanCode));
           return snap.exists() ? snap.data() : null;
         } else {
           if (this.mqttClient && this.mqttClient.connected) {
@@ -2181,12 +2249,210 @@
       lastJoinRetryAt: 0,
       numpadVisible: true
     };
-// ... existing code ... -->
-    // Network Status Diagnostics Popover
+
+    /* ===================================================================
+       5. UI NAVIGATION, TOASTS & FLOATING EMOJI REACTIONS
+       =================================================================== */
+    const ALL_VIEWS = ['view-login', 'view-hub', 'view-setup', 'view-lobby', 'view-arena', 'view-results'];
+
+    function showView(viewId) {
+      ALL_VIEWS.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('hidden', id !== viewId);
+      });
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+
+      const styles = {
+        info: 'border-cyan-400/50 text-cyan-100 bg-slate-900/95',
+        success: 'border-emerald-400/60 text-emerald-100 bg-emerald-950/95',
+        warning: 'border-amber-400/60 text-amber-100 bg-amber-950/95',
+        error: 'border-rose-500/70 text-rose-100 bg-rose-950/95'
+      };
+
+      const toast = document.createElement('div');
+      toast.className = `pointer-events-auto px-4 py-3 rounded-2xl border backdrop-blur-xl shadow-2xl text-xs sm:text-sm font-bold text-center animate-pop-in ${styles[type] || styles.info}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-8px)';
+        toast.style.transition = 'all 0.25s ease';
+        setTimeout(() => toast.remove(), 260);
+      }, 3300);
+    }
+
+    function spawnFloatingReaction(emoji, senderUserId) {
+      const layer = document.getElementById('floating-reactions-layer');
+      if (!layer) return;
+
+      audio.playReactionPop();
+      const bubble = document.createElement('div');
+      const leftPct = 15 + Math.random() * 70;
+      bubble.className = 'floating-reaction fixed bottom-24 flex flex-col items-center pointer-events-none';
+      bubble.style.left = `${leftPct}%`;
+      bubble.innerHTML = `
+        <span class="text-3xl sm:text-4xl drop-shadow-lg">${emoji}</span>
+        <span class="px-2 py-0.5 rounded-full bg-black/75 border border-white/15 text-[10px] font-extrabold text-white mt-0.5">${escapeHtml(senderUserId || '')}</span>
+      `;
+      layer.appendChild(bubble);
+      setTimeout(() => bubble.remove(), 2450);
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    /* ===================================================================
+       6. PROFILE, THEME & AUDIO CONTROLS
+       =================================================================== */
+    function loadSavedProfile() {
+      try {
+        const raw = safeStorage.get(PROFILE_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.userId) {
+            state.profile = { ...state.profile, ...parsed };
+          }
+        }
+      } catch (_) {}
+
+      const savedTheme = safeStorage.get('gtn_arena_theme_v2');
+      if (savedTheme) applyTheme(savedTheme);
+    }
+
+    function saveProfile() {
+      safeStorage.set(PROFILE_STORAGE_KEY, JSON.stringify(state.profile));
+    }
+
+    function applyTheme(themeId) {
+      state.theme = themeId;
+      document.body.setAttribute('data-theme', themeId);
+      safeStorage.set('gtn_arena_theme_v2', themeId);
+
+      document.querySelectorAll('.theme-pill').forEach(btn => {
+        const isMatch = btn.dataset.themeChoice === themeId;
+        btn.classList.toggle('pill-active', isMatch);
+        btn.classList.toggle('btn-glass', !isMatch);
+      });
+    }
+
+    function updateProfileUI() {
+      const hasProfile = Boolean(state.profile.userId);
+      const pill = document.getElementById('header-profile-pill');
+
+      if (hasProfile) {
+        pill.classList.remove('hidden');
+        pill.classList.add('flex');
+        document.getElementById('header-avatar').textContent = state.profile.avatar;
+        document.getElementById('header-userid').textContent = state.profile.userId;
+        document.getElementById('header-userid').style.color = state.profile.color;
+
+        document.getElementById('hub-avatar-badge').textContent = state.profile.avatar;
+        document.getElementById('hub-avatar-badge').style.borderColor = state.profile.color;
+        document.getElementById('hub-userid-display').textContent = state.profile.userId;
+        document.getElementById('hub-userid-display').style.color = state.profile.color;
+        document.getElementById('stat-wins').textContent = state.profile.wins || 0;
+        document.getElementById('stat-played').textContent = state.profile.gamesPlayed || 0;
+      } else {
+        pill.classList.add('hidden');
+        pill.classList.remove('flex');
+      }
+    }
+
+    function initPickers() {
+      const avatarGrid = document.getElementById('avatar-picker-grid');
+      avatarGrid.innerHTML = '';
+      AVATARS.forEach(emoji => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = emoji;
+        btn.className = `py-2.5 rounded-xl text-xl flex items-center justify-center border transition ${
+          state.profile.avatar === emoji ? 'pill-active scale-105' : 'btn-glass'
+        }`;
+        btn.addEventListener('click', () => {
+          audio.playClick();
+          state.profile.avatar = emoji;
+          initPickers();
+        });
+        avatarGrid.appendChild(btn);
+      });
+
+      const colorGrid = document.getElementById('badge-color-grid');
+      colorGrid.innerHTML = '';
+      BADGE_COLORS.forEach(c => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.title = c.label;
+        const selected = state.profile.color === c.hex;
+        btn.className = `h-9 rounded-xl border-2 transition ${selected ? 'scale-110 border-white shadow-lg' : 'border-white/20 opacity-80 hover:opacity-100'}`;
+        btn.style.backgroundColor = c.hex;
+        btn.addEventListener('click', () => {
+          audio.playClick();
+          state.profile.color = c.hex;
+          initPickers();
+        });
+        colorGrid.appendChild(btn);
+      });
+    }
+
+    document.querySelectorAll('.theme-pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        audio.playClick();
+        applyTheme(btn.dataset.themeChoice);
+      });
+    });
+
+    document.getElementById('select-music-track').addEventListener('change', (e) => {
+      audio.setTrack(e.target.value);
+    });
+
+    document.getElementById('btn-toggle-sfx').addEventListener('click', () => {
+      const next = !audio.sfxEnabled;
+      audio.setSfxEnabled(next);
+      document.getElementById('icon-sfx').textContent = next ? '🔊' : '🔇';
+      document.getElementById('label-sfx').textContent = next ? 'SFX' : 'Off';
+      if (next) audio.playClick();
+    });
+
     document.getElementById('btn-network-status').addEventListener('click', (e) => {
       e.stopPropagation();
       audio.playClick();
       document.getElementById('network-popover').classList.toggle('hidden');
+    });
+
+    document.addEventListener('click', (e) => {
+      const pop = document.getElementById('network-popover');
+      const btn = document.getElementById('btn-network-status');
+      if (pop && !pop.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+        pop.classList.add('hidden');
+      }
+    });
+
+    document.getElementById('btn-force-resync').addEventListener('click', async () => {
+      audio.playClick();
+      document.getElementById('network-popover').classList.add('hidden');
+      if (cloud.mode === 'mqtt') {
+        const mqttLib = await window.__mqttReadyPromise;
+        if (mqttLib) cloud.raceMqttBrokers(mqttLib);
+      }
+      if (state.roomCode) {
+        const fresh = await cloud.forceSyncRoom(state.roomCode);
+        if (fresh) {
+          handleIncomingRoomState(fresh);
+          showToast('🔄 Room state re-synced!', 'success');
+        }
+      } else {
+        showToast('🔄 Cloud connection refreshed!', 'info');
+      }
     });
 
     // Global first-touch audio unlock for iOS Safari & Android Chrome
@@ -2197,7 +2463,825 @@
     };
     window.addEventListener('touchstart', unlockAudioOnFirstGesture, { passive: true });
     window.addEventListener('pointerdown', unlockAudioOnFirstGesture, { passive: true });
-// ... existing code ... -->
+
+    document.getElementById('header-profile-pill').addEventListener('click', () => {
+      audio.playClick();
+      document.getElementById('input-userid').value = state.profile.userId.replace(/^@/, '');
+      initPickers();
+      showView('view-login');
+    });
+
+    document.getElementById('btn-brand-home').addEventListener('click', async () => {
+      audio.playClick();
+      if (!state.profile.userId) {
+        showView('view-login');
+        return;
+      }
+      await leaveCurrentRoomGracefully();
+      showView('view-hub');
+    });
+
+    /* ===================================================================
+       7. USER ID LOGIN FORM & JOIN CODE VALIDATION
+       =================================================================== */
+    document.getElementById('form-login').addEventListener('submit', (e) => {
+      e.preventDefault();
+      audio.unlock();
+      audio.playClick();
+
+      const raw = document.getElementById('input-userid').value.trim().replace(/^@+/, '');
+      const clean = raw.replace(/[^a-zA-Z0-9_.-]/g, '').slice(0, 18);
+      if (clean.length < 2) {
+        showToast('Please enter a User ID with at least 2 characters!', 'warning');
+        audio.playInvalidShake();
+        return;
+      }
+
+      state.profile.userId = '@' + clean.toLowerCase();
+      saveProfile();
+      updateProfileUI();
+
+      if (state.pendingInviteRoom) {
+        const inviteCode = state.pendingInviteRoom;
+        state.pendingInviteRoom = null;
+        showView('view-hub');
+        joinOnlineRoom(inviteCode);
+      } else {
+        showView('view-hub');
+      }
+    });
+
+    const joinCodeInput = document.getElementById('input-join-code');
+    const joinValidationEl = document.getElementById('join-code-validation');
+
+    function validateJoinCodeInput(val) {
+      const cleaned = val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
+      joinCodeInput.value = cleaned;
+      if (cleaned.length === 0) {
+        joinValidationEl.textContent = 'Enter 5 letters/numbers (e.g. K7M9P)';
+        joinValidationEl.className = 'text-[11px] font-bold text-slate-400 text-center mt-1.5';
+      } else if (cleaned.length < 5) {
+        joinValidationEl.textContent = `${5 - cleaned.length} more character${5 - cleaned.length === 1 ? '' : 's'} needed...`;
+        joinValidationEl.className = 'text-[11px] font-bold text-amber-300 text-center mt-1.5';
+      } else {
+        joinValidationEl.textContent = `✅ Ready to join Room ${cleaned}!`;
+        joinValidationEl.className = 'text-[11px] font-bold text-emerald-300 text-center mt-1.5';
+      }
+      return cleaned;
+    }
+
+    joinCodeInput.addEventListener('input', (e) => validateJoinCodeInput(e.target.value));
+
+    document.getElementById('form-join-code').addEventListener('submit', (e) => {
+      e.preventDefault();
+      audio.playClick();
+      const code = validateJoinCodeInput(joinCodeInput.value);
+      if (code.length !== 5) {
+        showToast('Please enter a valid 5-character room code!', 'warning');
+        audio.playInvalidShake();
+        joinCodeInput.focus();
+        return;
+      }
+      joinOnlineRoom(code);
+    });
+
+    document.getElementById('btn-hub-create').addEventListener('click', () => {
+      audio.playClick();
+      createOnlineRoom();
+    });
+
+    document.getElementById('btn-hub-solo').addEventListener('click', () => {
+      audio.playClick();
+      showView('view-setup');
+    });
+
+    function renderDiscoveredLobbies(rooms) {
+      const listEl = document.getElementById('live-lobbies-list');
+      if (!listEl) return;
+      if (!rooms || rooms.length === 0) {
+        listEl.innerHTML = `
+          <div class="text-xs text-slate-400 py-3 px-4 rounded-2xl bg-black/25 col-span-full text-center">
+            No public waiting rooms visible right now — create a room or join with your friend's 5-character code!
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = rooms.slice(0, 6).map(r => {
+        const count = Object.keys(r.players || {}).length;
+        return `
+          <div class="glass-subcard rounded-2xl p-3 flex items-center justify-between gap-2">
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="font-mono-num font-extrabold text-sm" style="color: var(--accent-primary);">${escapeHtml(r.code)}</span>
+                <span class="px-2 py-0.5 rounded-full bg-white/10 text-[10px] font-bold">Round ${r.roundNumber || 1}</span>
+              </div>
+              <div class="text-[11px] text-slate-300 truncate mt-0.5">
+                Host: <strong>${escapeHtml(r.hostUserId || '@host')}</strong> • ${count} player${count === 1 ? '' : 's'}
+              </div>
+            </div>
+            <button type="button" data-quick-join="${escapeHtml(r.code)}"
+                    class="quick-join-lobby-btn btn-primary px-3.5 py-2 rounded-xl text-xs uppercase tracking-wider shrink-0">
+              Join
+            </button>
+          </div>
+        `;
+      }).join('');
+
+      listEl.querySelectorAll('.quick-join-lobby-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          audio.playClick();
+          joinOnlineRoom(btn.dataset.quickJoin);
+        });
+      });
+    }
+
+    /* ===================================================================
+       8. SOLO QUICK PLAY SETUP & ENGINE
+       =================================================================== */
+    function syncRangePreview() {
+      const min = parseInt(document.getElementById('input-min-range').value, 10);
+      const max = parseInt(document.getElementById('input-max-range').value, 10);
+      const prev = document.getElementById('setup-range-preview');
+      if (!Number.isNaN(min) && !Number.isNaN(max) && max > min) {
+        prev.textContent = `${min} — ${max}`;
+      } else {
+        prev.textContent = 'Invalid Range';
+      }
+    }
+
+    function syncGuessesPreview() {
+      const g = parseInt(document.getElementById('input-custom-guesses').value, 10);
+      const prev = document.getElementById('setup-guesses-preview');
+      if (g === 0) {
+        prev.textContent = '∞ Unlimited';
+      } else if (!Number.isNaN(g) && g > 0) {
+        prev.textContent = `${g} Guess${g === 1 ? '' : 'es'}`;
+      } else {
+        prev.textContent = 'Invalid';
+      }
+    }
+
+    document.querySelectorAll('.range-preset').forEach(btn => {
+      btn.addEventListener('click', () => {
+        audio.playClick();
+        const [min, max] = btn.dataset.range.split(',').map(Number);
+        document.getElementById('input-min-range').value = min;
+        document.getElementById('input-max-range').value = max;
+        document.querySelectorAll('.range-preset').forEach(b => {
+          b.classList.toggle('pill-active', b === btn);
+          b.classList.toggle('btn-glass', b !== btn);
+        });
+        syncRangePreview();
+      });
+    });
+
+    document.querySelectorAll('.guess-preset').forEach(btn => {
+      btn.addEventListener('click', () => {
+        audio.playClick();
+        const val = parseInt(btn.dataset.guesses, 10);
+        document.getElementById('input-custom-guesses').value = val;
+        document.querySelectorAll('.guess-preset').forEach(b => {
+          b.classList.toggle('pill-active', b === btn);
+          b.classList.toggle('btn-glass', b !== btn);
+        });
+        syncGuessesPreview();
+      });
+    });
+
+    document.getElementById('input-min-range').addEventListener('input', syncRangePreview);
+    document.getElementById('input-max-range').addEventListener('input', syncRangePreview);
+    document.getElementById('input-custom-guesses').addEventListener('input', syncGuessesPreview);
+
+    document.getElementById('btn-setup-back').addEventListener('click', () => {
+      audio.playClick();
+      showView('view-hub');
+    });
+
+    document.getElementById('form-setup').addEventListener('submit', (e) => {
+      e.preventDefault();
+      audio.playClick();
+
+      const min = parseInt(document.getElementById('input-min-range').value, 10);
+      const max = parseInt(document.getElementById('input-max-range').value, 10);
+      const maxGuesses = parseInt(document.getElementById('input-custom-guesses').value, 10);
+
+      if (Number.isNaN(min) || Number.isNaN(max) || max <= min) {
+        showToast('Max range must be strictly greater than Min range!', 'error');
+        audio.playInvalidShake();
+        return;
+      }
+      if (Number.isNaN(maxGuesses) || maxGuesses < 0) {
+        showToast('Please enter a valid number of guesses (0 for unlimited)!', 'error');
+        audio.playInvalidShake();
+        return;
+      }
+
+      startSoloMatch({ min, max, maxGuesses });
+    });
+
+    function startSoloMatch({ min, max, maxGuesses }) {
+      const secret = Math.floor(Math.random() * (max - min + 1)) + min;
+      state.activeMode = 'solo';
+      state.isRoomHost = false;
+      state.soloGame = {
+        min,
+        max,
+        maxGuesses,
+        secret,
+        guesses: [],
+        solved: false,
+        outOfGuesses: false
+      };
+      state.localBounds = { low: min, high: max };
+      renderSoloArena();
+      showView('view-arena');
+    }
+
+    function renderSoloArena() {
+      const g = state.soloGame;
+      if (!g) return;
+
+      document.getElementById('arena-round-pill').textContent = 'SOLO MATCH';
+      document.getElementById('arena-mode-pill').textContent = '🎯 SINGLE PLAYER';
+      document.getElementById('arena-room-pill').classList.add('hidden');
+      document.getElementById('arena-players-strip').classList.add('hidden');
+
+      const left = g.maxGuesses === 0 ? '∞' : Math.max(0, g.maxGuesses - g.guesses.length);
+      const badge = document.getElementById('arena-guesses-badge');
+      document.getElementById('arena-guesses-text').textContent = g.maxGuesses === 0 ? `${g.guesses.length} Used (∞)` : `${left} / ${g.maxGuesses} Left`;
+      badge.classList.toggle('animate-danger-pulse', g.maxGuesses > 0 && left === 1 && !g.solved);
+
+      updateRangeVisualBar(g.min, g.max, state.localBounds.low, state.localBounds.high);
+
+      const controls = document.getElementById('arena-controls-wrapper');
+      const specBox = document.getElementById('arena-spectator-box');
+      if (g.solved || g.outOfGuesses) {
+        controls.classList.add('hidden');
+        specBox.classList.add('hidden');
+      } else {
+        controls.classList.remove('hidden');
+        specBox.classList.add('hidden');
+      }
+
+      const last = g.guesses[g.guesses.length - 1];
+      updateRadarFromLastGuess(last, g.min, g.max);
+      renderGuessHistoryList(g.guesses, false);
+    }
+
+    function handleSoloGuess(num) {
+      const g = state.soloGame;
+      if (!g || g.solved || g.outOfGuesses) return;
+
+      if (num < g.min || num > g.max) {
+        showToast(`Please pick a number between ${g.min} and ${g.max}!`, 'warning');
+        audio.playInvalidShake();
+        return;
+      }
+
+      const span = Math.max(1, g.max - g.min);
+      const diff = Math.abs(num - g.secret);
+      const pctDiff = diff / span;
+
+      let direction = 'exact';
+      if (num < g.secret) {
+        direction = 'low';
+        state.localBounds.low = Math.max(state.localBounds.low, num + 1);
+      } else if (num > g.secret) {
+        direction = 'high';
+        state.localBounds.high = Math.min(state.localBounds.high, num - 1);
+      }
+
+      const temp = computeTemperature(diff, pctDiff);
+      const entry = {
+        num,
+        direction,
+        tempLabel: temp.label,
+        tempIcon: temp.icon,
+        userId: state.profile.userId,
+        avatar: state.profile.avatar
+      };
+      g.guesses.push(entry);
+
+      if (direction === 'exact') {
+        g.solved = true;
+        audio.playWinFanfare();
+        triggerConfettiBurst();
+        state.profile.wins = (state.profile.wins || 0) + 1;
+        state.profile.gamesPlayed = (state.profile.gamesPlayed || 0) + 1;
+        saveProfile();
+        updateProfileUI();
+        renderSoloArena();
+        setTimeout(() => showSoloResults(true), 650);
+        return;
+      }
+
+      if (temp.tier === 'scorching') {
+        audio.playScorchingAlert();
+      } else if (direction === 'low') {
+        audio.playTooLow();
+      } else {
+        audio.playTooHigh();
+      }
+
+      if (g.maxGuesses > 0 && g.guesses.length >= g.maxGuesses) {
+        g.outOfGuesses = true;
+        audio.playLoseSound();
+        state.profile.gamesPlayed = (state.profile.gamesPlayed || 0) + 1;
+        saveProfile();
+        updateProfileUI();
+        renderSoloArena();
+        setTimeout(() => showSoloResults(false), 750);
+        return;
+      }
+
+      if (g.maxGuesses > 0 && g.maxGuesses - g.guesses.length === 1) {
+        audio.playLastGuessTick();
+      }
+
+      renderSoloArena();
+    }
+
+    function showSoloResults(won) {
+      const g = state.soloGame;
+      if (!g) return;
+
+      document.getElementById('results-trophy-icon').textContent = won ? '🏆' : '💥';
+      document.getElementById('results-round-pill').textContent = 'SOLO MATCH COMPLETE';
+      document.getElementById('results-title').textContent = won
+        ? `${state.profile.userId} Cracked It!`
+        : 'Out of Guesses!';
+      document.getElementById('results-subtitle').textContent = won
+        ? `Found the secret number in ${g.guesses.length} guess${g.guesses.length === 1 ? '' : 'es'}!`
+        : `Better luck next run! You used all ${g.maxGuesses} guesses.`;
+      document.getElementById('results-secret-number').textContent = g.secret;
+      document.getElementById('results-secret-setter').classList.add('hidden');
+      document.getElementById('results-rotation-strip').classList.add('hidden');
+      document.getElementById('results-history-accordion').classList.add('hidden');
+
+      document.getElementById('results-standings-list').innerHTML = `
+        <div class="glass-subcard rounded-2xl p-3.5 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">${state.profile.avatar}</span>
+            <div>
+              <div class="font-bold text-sm" style="color: ${state.profile.color};">${escapeHtml(state.profile.userId)}</div>
+              <div class="text-[11px] text-slate-400">Range ${g.min}–${g.max} • ${g.guesses.length} guesses</div>
+            </div>
+          </div>
+          <span class="px-3 py-1 rounded-xl text-xs font-extrabold ${won ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}">
+            ${won ? '✅ SOLVED' : '❌ FAILED'}
+          </span>
+        </div>
+      `;
+
+      document.getElementById('results-online-host-actions').classList.add('hidden');
+      document.getElementById('results-online-guest-wait').classList.add('hidden');
+      document.getElementById('results-solo-actions').classList.remove('hidden');
+      showView('view-results');
+    }
+
+    /* ===================================================================
+       9. MULTI-ROUND ONLINE ROOM CREATION, JOINING & TURN ROTATION
+       =================================================================== */
+    function generateRoomCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = '';
+      for (let i = 0; i < 5; i++) {
+        code += chars[Math.floor(Math.random() * chars.length)];
+      }
+      return code;
+    }
+
+    function createInitialPlayerEntry(uid, profile, isHost, isBot = false) {
+      return {
+        id: uid,
+        userId: profile.userId,
+        avatar: profile.avatar,
+        color: profile.color,
+        isHost,
+        isBot,
+        isSpectator: false,
+        joinedAt: Date.now(),
+        roundWins: 0,
+        guessCount: 0,
+        solved: false,
+        outOfGuesses: false,
+        privateLow: 1,
+        privateHigh: 100,
+        guesses: []
+      };
+    }
+
+    async function createOnlineRoom() {
+      if (!cloud.ready) {
+        await cloud.init();
+      }
+
+      const code = generateRoomCode();
+      const mePlayer = createInitialPlayerEntry(state.uid, state.profile, true, false);
+
+      // Default secretMode = 'rotation' so everyone automatically gets turns setting secrets!
+      const roomDoc = {
+        code,
+        roundNumber: 1,
+        hostId: state.uid,
+        hostUserId: state.profile.userId,
+        status: 'waiting', // 'waiting' | 'playing' | 'finished'
+        min: 1,
+        max: 100,
+        maxGuesses: 7,
+        mpMode: 'race', // 'race' | 'chaos'
+        secretMode: 'rotation', // 'rotation' | 'auto' | 'custom'
+        rotationOrder: [state.uid],
+        rotationIndex: 0,
+        rotationCycle: 1,
+        justCompletedCycle: false,
+        secretMasterId: state.uid,
+        secretMasterUserId: state.profile.userId,
+        secretNumber: null,
+        secretReady: false,
+        sharedLow: 1,
+        sharedHigh: 100,
+        sharedGuesses: [],
+        winnerId: null,
+        winnerUserId: null,
+        winnerGuessesCount: 0,
+        pastRounds: [],
+        reactions: [],
+        players: {
+          [state.uid]: mePlayer
+        },
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+
+      try {
+        await cleanupPreviousSubscription();
+        state.activeMode = 'online';
+        state.isRoomHost = true;
+        state.roomCode = code;
+        state.roomState = roomDoc;
+        state.lastKnownHostId = state.uid;
+        state.lastKnownSecretMasterId = state.uid;
+        state.spectatorSecretVisible = false;
+
+        state.roomUnsub = await cloud.createRoom(
+          code,
+          roomDoc,
+          handleIncomingRoomState,
+          handleHostMqttEvent,
+          (err) => showToast('Sync warning: ' + (err?.message || 'Reconnecting...'), 'warning')
+        );
+
+        startHostHeartbeat();
+        handleIncomingRoomState(roomDoc);
+        showView('view-lobby');
+        showToast(`👑 Multi-Round Room ${code} created! Share code with friends.`, 'success');
+      } catch (err) {
+        console.error('Create room failed:', err);
+        showToast('Could not create room: ' + (err?.message || 'Network error'), 'error');
+      }
+    }
+
+    async function joinOnlineRoom(rawCode) {
+      const code = String(rawCode || '').trim().toUpperCase();
+      if (code.length !== 5) return;
+
+      const modal = document.getElementById('modal-joining-room');
+      document.getElementById('joining-room-title').textContent = `Joining Room ${code}...`;
+      modal.classList.remove('hidden');
+
+      let cancelled = false;
+      const cancelBtn = document.getElementById('btn-cancel-join');
+      const onCancel = () => {
+        cancelled = true;
+        modal.classList.add('hidden');
+      };
+      cancelBtn.onclick = onCancel;
+
+      try {
+        if (!cloud.ready) {
+          await cloud.init();
+        }
+        await cleanupPreviousSubscription();
+
+        const mePlayer = createInitialPlayerEntry(state.uid, state.profile, false, false);
+        const res = await cloud.joinRoom(
+          code,
+          mePlayer,
+          (roomData) => {
+            if (cancelled) return;
+            modal.classList.add('hidden');
+            handleIncomingRoomState(roomData);
+          },
+          handleHostMqttEvent,
+          (err) => {
+            if (!cancelled) showToast('Room sync warning: ' + (err?.message || 'Reconnecting'), 'warning');
+          }
+        );
+
+        if (cancelled) {
+          if (res?.unsub) res.unsub();
+          return;
+        }
+
+        modal.classList.add('hidden');
+        if (!res.ok) {
+          showToast(res.reason || 'Could not join room.', 'error');
+          audio.playInvalidShake();
+          return;
+        }
+
+        state.activeMode = 'online';
+        state.isRoomHost = false;
+        state.roomCode = code;
+        state.roomUnsub = res.unsub;
+        state.spectatorSecretVisible = false;
+        showToast(`🎉 Joined Multi-Round Room ${code}!`, 'success');
+      } catch (err) {
+        modal.classList.add('hidden');
+        showToast('Failed to join room: ' + (err?.message || 'Network error'), 'error');
+      }
+    }
+
+    async function cleanupPreviousSubscription() {
+      if (state.roomUnsub) {
+        try { state.roomUnsub(); } catch (_) {}
+        state.roomUnsub = null;
+      }
+      if (state.heartbeatTimerId) {
+        clearInterval(state.heartbeatTimerId);
+        state.heartbeatTimerId = null;
+      }
+      if (state.botTimerId) {
+        clearInterval(state.botTimerId);
+        state.botTimerId = null;
+      }
+    }
+
+    async function leaveCurrentRoomGracefully() {
+      const code = state.roomCode;
+      const room = state.roomState;
+      const wasOnline = state.activeMode === 'online' && code && room;
+
+      if (wasOnline) {
+        try {
+          if (cloud.mode === 'firebase' && cloud.auth?.currentUser && cloud.fbFns) {
+            const players = cloneObj(room.players || {});
+            delete players[state.uid];
+            const humanIds = Object.values(players)
+              .filter(p => !p.isBot)
+              .sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0))
+              .map(p => p.id);
+
+            const nextOrder = (room.rotationOrder || []).filter(id => humanIds.includes(id));
+            const patch = {
+              [`players.${state.uid}`]: cloud.fbFns.deleteField(),
+              rotationOrder: nextOrder,
+              updatedAt: Date.now()
+            };
+
+            if (room.hostId === state.uid && humanIds.length > 0) {
+              const nextHostId = humanIds[0];
+              patch.hostId = nextHostId;
+              patch.hostUserId = players[nextHostId]?.userId || '@host';
+              patch[`players.${nextHostId}.isHost`] = true;
+            }
+            if (room.secretMasterId === state.uid && humanIds.length > 0 && room.status === 'waiting') {
+              const nextMasterId = nextOrder[0] || humanIds[0];
+              patch.secretMasterId = nextMasterId;
+              patch.secretMasterUserId = players[nextMasterId]?.userId || '@master';
+              patch.secretNumber = null;
+              patch.secretReady = false;
+            }
+            await cloud.fbFns.updateDoc(cloud.getRoomDocRef(code), patch);
+          } else if (cloud.mode === 'mqtt') {
+            if (room.hostId === state.uid) {
+              const nextRoom = removePlayerFromRoomObj(room, state.uid);
+              cloud.publishMqttState(nextRoom);
+            } else {
+              cloud.publishMqttEvent(code, {
+                type: 'LEAVE_ROOM',
+                playerId: state.uid
+              });
+            }
+          }
+        } catch (_) {}
+      }
+
+      await cleanupPreviousSubscription();
+      state.activeMode = null;
+      state.isRoomHost = false;
+      state.roomCode = null;
+      state.roomState = null;
+      state.lastKnownHostId = null;
+      state.lastKnownSecretMasterId = null;
+    }
+
+    function removePlayerFromRoomObj(room, leavingUid) {
+      const nextRoom = cloneObj(room);
+      nextRoom.players = nextRoom.players || {};
+      delete nextRoom.players[leavingUid];
+
+      const remainingHumans = Object.values(nextRoom.players)
+        .filter(p => !p.isBot)
+        .sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
+
+      const remainingHumanIds = remainingHumans.map(p => p.id);
+      nextRoom.rotationOrder = (nextRoom.rotationOrder || []).filter(id => remainingHumanIds.includes(id));
+
+      if (nextRoom.hostId === leavingUid && remainingHumans.length > 0) {
+        const nextHost = remainingHumans[0];
+        nextRoom.hostId = nextHost.id;
+        nextRoom.hostUserId = nextHost.userId;
+        Object.keys(nextRoom.players).forEach(pid => {
+          nextRoom.players[pid].isHost = (pid === nextHost.id);
+        });
+      }
+
+      if (nextRoom.secretMasterId === leavingUid && remainingHumans.length > 0 && nextRoom.status === 'waiting') {
+        const nextIdx = nextRoom.rotationOrder.length > 0 ? (nextRoom.rotationIndex % nextRoom.rotationOrder.length) : 0;
+        const nextMasterId = nextRoom.rotationOrder[nextIdx] || remainingHumans[0].id;
+        nextRoom.rotationIndex = nextIdx;
+        nextRoom.secretMasterId = nextMasterId;
+        nextRoom.secretMasterUserId = nextRoom.players[nextMasterId]?.userId || remainingHumans[0].userId;
+        nextRoom.secretNumber = null;
+        nextRoom.secretReady = false;
+      }
+
+      nextRoom.updatedAt = Date.now();
+      return nextRoom;
+    }
+
+    function startHostHeartbeat() {
+      if (state.heartbeatTimerId) clearInterval(state.heartbeatTimerId);
+      state.heartbeatTimerId = setInterval(() => {
+        if (state.activeMode === 'online' && state.isRoomHost && state.roomState) {
+          state.roomState.updatedAt = Date.now();
+          if (cloud.mode === 'mqtt') {
+            cloud.publishMqttState(state.roomState);
+          }
+        }
+      }, 2500);
+    }
+
+    /* ===================================================================
+       10. HOST-AUTHORITATIVE MQTT EVENT PROCESSOR
+       =================================================================== */
+    function handleHostMqttEvent(ev) {
+      if (!ev || !state.roomState || !state.isRoomHost || cloud.mode !== 'mqtt') return;
+      const room = cloneObj(state.roomState);
+      let changed = false;
+
+      if (ev.type === 'JOIN_REQ' && ev.player && ev.player.id) {
+        const p = ev.player;
+        const existing = room.players?.[p.id];
+        room.players = room.players || {};
+        room.players[p.id] = existing ? {
+          ...existing,
+          userId: p.userId,
+          avatar: p.avatar,
+          color: p.color
+        } : {
+          ...p,
+          isHost: p.id === room.hostId,
+          roundWins: 0,
+          isSpectator: room.status === 'playing',
+          privateLow: room.min,
+          privateHigh: room.max,
+          guessCount: 0,
+          solved: false,
+          outOfGuesses: false,
+          guesses: []
+        };
+        if (!p.isBot) {
+          room.rotationOrder = Array.isArray(room.rotationOrder) ? room.rotationOrder : [];
+          if (!room.rotationOrder.includes(p.id)) {
+            room.rotationOrder.push(p.id);
+          }
+        }
+        changed = true;
+      } else if (ev.type === 'LEAVE_ROOM' && ev.playerId) {
+        const updated = removePlayerFromRoomObj(room, ev.playerId);
+        Object.assign(room, updated);
+        changed = true;
+      } else if (ev.type === 'SET_SECRET' && typeof ev.secretNumber === 'number') {
+        if (ev.masterId === room.secretMasterId && room.status === 'waiting') {
+          room.secretNumber = ev.secretNumber;
+          room.secretReady = true;
+          room.secretMasterUserId = ev.masterUserId || room.secretMasterUserId;
+          changed = true;
+        }
+      } else if (ev.type === 'REACTION' && ev.emoji) {
+        room.reactions = Array.isArray(room.reactions) ? room.reactions.slice(-12) : [];
+        room.reactions.push({
+          id: ev.eventId || makeEventId(),
+          emoji: ev.emoji,
+          userId: ev.userId || '@player',
+          ts: Date.now()
+        });
+        changed = true;
+      } else if (ev.type === 'SUBMIT_GUESS' && ev.playerId && typeof ev.guess === 'number') {
+        if (room.status === 'playing') {
+          applyGuessToRoomState(room, ev.playerId, ev.guess);
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        room.updatedAt = Date.now();
+        state.roomState = room;
+        cloud.publishMqttState(room);
+        handleIncomingRoomState(room);
+      }
+    }
+
+    function applyGuessToRoomState(room, playerId, num) {
+      if (!room || room.status !== 'playing' || room.secretNumber === null) return;
+      const p = room.players?.[playerId];
+      if (!p || p.isSpectator || p.solved || p.outOfGuesses) return;
+      if (num < room.min || num > room.max) return;
+
+      const secret = room.secretNumber;
+      const span = Math.max(1, room.max - room.min);
+      const diff = Math.abs(num - secret);
+      const pctDiff = diff / span;
+
+      let direction = 'exact';
+      if (num < secret) {
+        direction = 'low';
+        p.privateLow = Math.max(p.privateLow ?? room.min, num + 1);
+        if (room.mpMode === 'chaos') {
+          room.sharedLow = Math.max(room.sharedLow ?? room.min, num + 1);
+        }
+      } else if (num > secret) {
+        direction = 'high';
+        p.privateHigh = Math.min(p.privateHigh ?? room.max, num - 1);
+        if (room.mpMode === 'chaos') {
+          room.sharedHigh = Math.min(room.sharedHigh ?? room.max, num - 1);
+        }
+      }
+
+      const temp = computeTemperature(diff, pctDiff);
+      const entry = {
+        num,
+        direction,
+        tempLabel: temp.label,
+        tempIcon: temp.icon,
+        playerId: p.id,
+        userId: p.userId,
+        avatar: p.avatar,
+        ts: Date.now()
+      };
+
+      p.guesses = Array.isArray(p.guesses) ? p.guesses : [];
+      p.guesses.push(entry);
+      p.guessCount = p.guesses.length;
+
+      if (room.mpMode === 'chaos') {
+        room.sharedGuesses = Array.isArray(room.sharedGuesses) ? room.sharedGuesses : [];
+        room.sharedGuesses.push(entry);
+      }
+
+      if (direction === 'exact') {
+        p.solved = true;
+        p.roundWins = (p.roundWins || 0) + 1;
+        room.status = 'finished';
+        room.winnerId = p.id;
+        room.winnerUserId = p.userId;
+        room.winnerGuessesCount = p.guessCount;
+        recordCompletedRound(room);
+        return;
+      }
+
+      if (room.maxGuesses > 0 && p.guessCount >= room.maxGuesses) {
+        p.outOfGuesses = true;
+      }
+
+      // Check if all active guessers have run out of guesses
+      const activeGuessers = Object.values(room.players || {}).filter(pl => !pl.isSpectator);
+      if (activeGuessers.length > 0 && activeGuessers.every(pl => pl.outOfGuesses || pl.solved)) {
+        room.status = 'finished';
+        room.winnerId = null;
+        room.winnerUserId = null;
+        room.winnerGuessesCount = 0;
+        recordCompletedRound(room);
+      }
+    }
+
+    function recordCompletedRound(room) {
+      room.pastRounds = Array.isArray(room.pastRounds) ? room.pastRounds : [];
+      const rNum = room.roundNumber || 1;
+      if (room.pastRounds.some(r => r.roundNumber === rNum)) return;
+      room.pastRounds.push({
+        roundNumber: rNum,
+        winnerUserId: room.winnerUserId || 'Nobody',
+        guessesCount: room.winnerGuessesCount || 0,
+        secretNumber: room.secretNumber,
+        secretMasterUserId: room.secretMode === 'auto' ? 'Auto-Random' : (room.secretMasterUserId || room.hostUserId)
+      });
+    }
+
     /* ===================================================================
        11. INCOMING ROOM STATE ROUTER & ROTATION QUEUE RENDERER
        =================================================================== */
@@ -2209,7 +3293,7 @@
       // Auto re-request join in MQTT mode if guest isn't registered in room.players yet
       if (!amHostNow && cloud.mode === 'mqtt' && room.players && !room.players[state.uid]) {
         const now = Date.now();
-        if (now - state.lastJoinRetryAt > 3000) {
+        if (now - state.lastJoinRetryAt > 2500) {
           state.lastJoinRetryAt = now;
           cloud.publishMqttEvent(room.code, {
             type: 'JOIN_REQ',
@@ -2235,7 +3319,198 @@
       }
 
       if (amHostNow && !state.isRoomHost) {
-// ... existing code ... -->
+        state.isRoomHost = true;
+        startHostHeartbeat();
+        audio.playHostCrownFanfare();
+        showToast('👑 You are now the Room Admin Host!', 'success');
+      } else if (!amHostNow && state.isRoomHost) {
+        state.isRoomHost = false;
+        if (state.heartbeatTimerId) {
+          clearInterval(state.heartbeatTimerId);
+          state.heartbeatTimerId = null;
+        }
+        showToast(`👑 ${room.hostUserId || 'Another player'} is now Room Admin!`, 'info');
+      }
+
+      // Notify when it becomes YOUR turn to set the secret number
+      if (
+        room.status === 'waiting' &&
+        room.secretMode !== 'auto' &&
+        room.secretMasterId === state.uid &&
+        state.lastKnownSecretMasterId !== state.uid
+      ) {
+        audio.playHostCrownFanfare();
+        showToast('🎯 YOUR TURN! Pick a secret number & spectate this round!', 'success');
+      }
+      state.lastKnownHostId = room.hostId;
+      state.lastKnownSecretMasterId = room.secretMasterId;
+
+      // Render any newly arrived live emoji reactions
+      if (Array.isArray(room.reactions)) {
+        room.reactions.forEach(rx => {
+          if (rx && rx.id && !state.seenReactionIds.has(rx.id)) {
+            state.seenReactionIds.add(rx.id);
+            if (Date.now() - (rx.ts || 0) < 6000) {
+              spawnFloatingReaction(rx.emoji, rx.userId);
+            }
+          }
+        });
+      }
+
+      if (room.status === 'waiting') {
+        if (state.botTimerId) {
+          clearInterval(state.botTimerId);
+          state.botTimerId = null;
+        }
+        renderLobbyView(room);
+        showView('view-lobby');
+      } else if (room.status === 'playing') {
+        if (amHostNow && !state.botTimerId) {
+          startHostBotRunner();
+        }
+        renderOnlineArenaView(room);
+        showView('view-arena');
+      } else if (room.status === 'finished') {
+        if (state.botTimerId) {
+          clearInterval(state.botTimerId);
+          state.botTimerId = null;
+        }
+        renderOnlineResults(room);
+        showView('view-results');
+      }
+    }
+
+    function getOrderedHumanPlayers(room) {
+      const playersMap = room.players || {};
+      const humans = Object.values(playersMap)
+        .filter(p => !p.isBot)
+        .sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
+      const humanIds = humans.map(p => p.id);
+      const rawOrder = Array.isArray(room.rotationOrder) ? room.rotationOrder : [];
+      const cleanOrder = rawOrder.filter(id => humanIds.includes(id));
+      humanIds.forEach(id => {
+        if (!cleanOrder.includes(id)) cleanOrder.push(id);
+      });
+      return cleanOrder.map(id => playersMap[id]).filter(Boolean);
+    }
+
+    function renderRotationQueueStrip(room, containerEl, listEl) {
+      if (room.secretMode !== 'rotation') {
+        containerEl.classList.add('hidden');
+        return;
+      }
+
+      const orderedHumans = getOrderedHumanPlayers(room);
+      const bots = Object.values(room.players || {}).filter(p => p.isBot);
+      if (orderedHumans.length === 0) {
+        containerEl.classList.add('hidden');
+        return;
+      }
+
+      containerEl.classList.remove('hidden');
+      const activeIdx = Math.max(0, orderedHumans.findIndex(p => p.id === room.secretMasterId));
+      const cycle = room.rotationCycle || 1;
+
+      const cycleProgEl = document.getElementById('lobby-cycle-progress');
+      if (cycleProgEl && containerEl.id === 'lobby-rotation-strip') {
+        cycleProgEl.textContent = `Cycle ${cycle} • Turn ${activeIdx + 1} of ${orderedHumans.length}`;
+      }
+
+      const cycleBannerEl = document.getElementById('lobby-cycle-banner');
+      if (cycleBannerEl && containerEl.id === 'lobby-rotation-strip') {
+        if (room.justCompletedCycle && cycle > 1 && activeIdx === 0) {
+          cycleBannerEl.textContent = `🎉 Full Rotation Complete! Starting Cycle ${cycle}...`;
+          cycleBannerEl.classList.remove('hidden');
+        } else {
+          cycleBannerEl.classList.add('hidden');
+        }
+      }
+
+      const skipBtn = document.getElementById('btn-lobby-skip-turn');
+      if (skipBtn && containerEl.id === 'lobby-rotation-strip') {
+        skipBtn.classList.toggle('hidden', !(room.hostId === state.uid && orderedHumans.length > 1));
+      }
+
+      const htmlParts = orderedHumans.map((p, idx) => {
+        let badgeText = '';
+        let cardCls = 'bg-black/35 border-white/10 opacity-80';
+        if (idx < activeIdx) {
+          badgeText = '✅ Done';
+          cardCls = 'bg-emerald-500/10 border-emerald-400/30 text-emerald-200';
+        } else if (idx === activeIdx) {
+          badgeText = room.status === 'finished' ? '✅ Just Set Secret' : '🎯 Setting Secret Now';
+          cardCls = 'bg-cyan-500/20 border-cyan-400 text-white shadow-md';
+        } else if (idx === activeIdx + 1) {
+          badgeText = '⏳ Up Next';
+          cardCls = 'bg-amber-500/15 border-amber-400/40 text-amber-200';
+        } else {
+          badgeText = `⏳ Turn ${idx + 1}`;
+        }
+
+        return `
+          <div class="shrink-0 rounded-2xl px-3 py-2 border ${cardCls} flex items-center gap-2">
+            <span class="text-lg">${p.avatar}</span>
+            <div>
+              <div class="text-xs font-extrabold leading-tight">${escapeHtml(p.userId)}</div>
+              <div class="text-[10px] font-bold opacity-90">${badgeText}</div>
+            </div>
+          </div>
+        `;
+      });
+
+      bots.forEach(b => {
+        htmlParts.push(`
+          <div class="shrink-0 rounded-2xl px-3 py-2 border border-white/10 bg-black/25 opacity-60 flex items-center gap-2">
+            <span class="text-lg">${b.avatar}</span>
+            <div>
+              <div class="text-xs font-bold leading-tight">${escapeHtml(b.userId)}</div>
+              <div class="text-[10px]">🤖 Guesses Only</div>
+            </div>
+          </div>
+        `);
+      });
+
+      listEl.innerHTML = htmlParts.join('');
+    }
+
+    function renderLobbyView(room) {
+      const isHost = room.hostId === state.uid;
+      const isSecretMaster = room.secretMode !== 'auto' && room.secretMasterId === state.uid;
+      const playersMap = room.players || {};
+      const masterPlayer = playersMap[room.secretMasterId];
+      const masterLabel = masterPlayer ? masterPlayer.userId : (room.secretMasterUserId || '@master');
+
+      document.getElementById('lobby-round-badge').textContent = `ROUND ${room.roundNumber || 1} LOBBY`;
+      document.getElementById('lobby-host-badge').textContent = `👑 Admin: ${room.hostUserId || '@host'}`;
+
+      const masterBadgeEl = document.getElementById('lobby-master-badge');
+      if (room.secretMode === 'auto') {
+        masterBadgeEl.textContent = '🎲 Secret: Auto-Random (All Play)';
+      } else {
+        masterBadgeEl.textContent = `🎯 Secret Master: ${masterLabel}`;
+      }
+
+      // 5 Room Code Tiles
+      const tiles = document.getElementById('lobby-code-tiles').children;
+      const chars = String(room.code || '-----').split('');
+      for (let i = 0; i < 5; i++) {
+        if (tiles[i]) tiles[i].textContent = chars[i] || '-';
+      }
+
+      // Secret Rotation Strip
+      renderRotationQueueStrip(
+        room,
+        document.getElementById('lobby-rotation-strip'),
+        document.getElementById('lobby-rotation-list')
+      );
+
+      // Secret Master Input Card vs Waiting Banner
+      const masterCard = document.getElementById('lobby-secret-master-card');
+      const waitBanner = document.getElementById('lobby-waiting-secret-banner');
+
+      if (room.secretMode === 'auto') {
+        masterCard.classList.add('hidden');
+        waitBanner.classList.add('hidden');
       } else if (isSecretMaster) {
         masterCard.classList.remove('hidden');
         waitBanner.classList.add('hidden');
@@ -2245,7 +3520,33 @@
         }
         document.getElementById('lobby-secret-range-hint').textContent =
           `Pick a secret number between ${room.min} and ${room.max}. Friends will guess while you spectate live!`;
-// ... existing code ... -->
+        const statusPill = document.getElementById('lobby-my-secret-status-pill');
+        if (room.secretReady && room.secretNumber !== null) {
+          statusPill.textContent = '✅ Secret Locked In & Ready!';
+          statusPill.className = 'px-3 py-1.5 rounded-xl text-xs font-extrabold bg-emerald-500/20 border border-emerald-400/50 text-emerald-200';
+        } else {
+          statusPill.textContent = '✍️ Not Locked In Yet';
+          statusPill.className = 'px-3 py-1.5 rounded-xl text-xs font-extrabold bg-amber-500/20 border border-amber-400/40 text-amber-200';
+        }
+      } else {
+        masterCard.classList.add('hidden');
+        waitBanner.classList.remove('hidden');
+        document.getElementById('lobby-wait-master-avatar').textContent = masterPlayer?.avatar || '🎯';
+        document.getElementById('lobby-wait-master-title').textContent = room.secretReady
+          ? `✅ ${masterLabel} locked in their secret number!`
+          : `⏳ Waiting for ${masterLabel} to lock in their secret number...`;
+        document.getElementById('lobby-wait-master-sub').textContent =
+          `${masterLabel} will spectate Round ${room.roundNumber || 1} while everyone else guesses!`;
+        const waitPill = document.getElementById('lobby-wait-master-pill');
+        if (room.secretReady) {
+          waitPill.textContent = '✅ Secret Ready!';
+          waitPill.className = 'px-3 py-1.5 rounded-xl text-xs font-extrabold bg-emerald-500/20 border border-emerald-400/50 text-emerald-200';
+        } else {
+          waitPill.textContent = '✍️ Choosing secret...';
+          waitPill.className = 'px-3 py-1.5 rounded-xl text-xs font-extrabold bg-amber-500/20 border border-amber-400/40 text-amber-200';
+        }
+      }
+
       // Render Player Roster
       const playersList = Object.values(playersMap).sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
       document.getElementById('lobby-player-count').textContent = playersList.length;
@@ -2259,7 +3560,246 @@
       }
 
       const addBotBtn = document.getElementById('btn-lobby-add-bot');
-// ... existing code ... -->
+      const transferHint = document.getElementById('lobby-transfer-hint');
+      addBotBtn.classList.toggle('hidden', !isHost);
+      transferHint.classList.toggle('hidden', !(isHost && playersList.some(p => !p.isBot && p.id !== state.uid)));
+
+      const rosterEl = document.getElementById('lobby-players-grid');
+      rosterEl.innerHTML = playersList.map(p => {
+        const isMe = p.id === state.uid;
+        const pIsHost = p.id === room.hostId;
+        const pIsMaster = room.secretMode !== 'auto' && p.id === room.secretMasterId;
+        const canAssignMaster = isHost && !p.isBot && !pIsMaster;
+        const canMakeHost = isHost && !p.isBot && !pIsHost;
+        const canKickBot = isHost && p.isBot;
+
+        return `
+          <div class="glass-subcard rounded-2xl p-3 flex flex-col gap-2 border ${pIsMaster ? 'border-cyan-400/50' : 'border-white/10'}">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <span class="w-10 h-10 rounded-xl bg-black/40 border border-white/15 flex items-center justify-center text-xl shrink-0">
+                  ${p.avatar}
+                </span>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="font-bold text-xs sm:text-sm truncate" style="color: ${p.color || '#00f5d4'};">
+                      ${escapeHtml(p.userId)}
+                    </span>
+                    ${isMe ? '<span class="px-1.5 py-0.5 rounded bg-white/15 text-[9px] font-extrabold text-white">YOU</span>' : ''}
+                    ${pIsHost ? '<span class="px-1.5 py-0.5 rounded bg-amber-500/25 text-[9px] font-extrabold text-amber-200">👑 ADMIN</span>' : ''}
+                    ${pIsMaster ? '<span class="px-1.5 py-0.5 rounded bg-cyan-500/25 text-[9px] font-extrabold text-cyan-200">🎯 SECRET MASTER</span>' : ''}
+                    ${p.isBot ? '<span class="px-1.5 py-0.5 rounded bg-purple-500/25 text-[9px] font-extrabold text-purple-200">🤖 BOT</span>' : ''}
+                  </div>
+                  <div class="text-[11px] text-slate-400 mt-0.5">
+                    🏆 ${p.roundWins || 0} round win${(p.roundWins || 0) === 1 ? '' : 's'}
+                  </div>
+                </div>
+              </div>
+              ${canKickBot ? `
+                <button type="button" data-remove-bot="${escapeHtml(p.id)}"
+                        class="remove-bot-btn btn-glass px-2.5 py-1 rounded-lg text-[10px] font-bold text-rose-300">
+                  ✕
+                </button>
+              ` : ''}
+            </div>
+
+            ${(canAssignMaster || canMakeHost) ? `
+              <div class="flex flex-wrap items-center gap-1.5 pt-1 border-t border-white/10">
+                ${canAssignMaster ? `
+                  <button type="button" data-assign-master="${escapeHtml(p.id)}"
+                          class="assign-master-btn btn-glass flex-1 py-1.5 px-2.5 rounded-xl text-[10px] font-extrabold text-cyan-200 border border-cyan-400/35">
+                    🎯 Let Set Secret
+                  </button>
+                ` : ''}
+                ${canMakeHost ? `
+                  <button type="button" data-transfer-host="${escapeHtml(p.id)}"
+                          class="transfer-host-btn btn-glass flex-1 py-1.5 px-2.5 rounded-xl text-[10px] font-extrabold text-amber-200 border border-amber-400/35">
+                    👑 Make Host
+                  </button>
+                ` : ''}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+
+      rosterEl.querySelectorAll('.assign-master-btn').forEach(btn => {
+        btn.addEventListener('click', () => assignSecretMaster(btn.dataset.assignMaster));
+      });
+      rosterEl.querySelectorAll('.transfer-host-btn').forEach(btn => {
+        btn.addEventListener('click', () => transferHostToPlayer(btn.dataset.transferHost));
+      });
+      rosterEl.querySelectorAll('.remove-bot-btn').forEach(btn => {
+        btn.addEventListener('click', () => removeBotFromLobby(btn.dataset.removeBot));
+      });
+
+      // Past Rounds Log Accordion
+      renderPastRoundsAccordion(
+        room.pastRounds || [],
+        document.getElementById('lobby-history-accordion'),
+        document.getElementById('lobby-history-count'),
+        document.getElementById('lobby-history-list')
+      );
+
+      // Host vs Guest Settings Panel
+      const hostControls = document.getElementById('lobby-host-controls');
+      const guestPreview = document.getElementById('lobby-guest-settings-preview');
+      const startBtn = document.getElementById('btn-lobby-start');
+      const roleBadge = document.getElementById('lobby-role-badge');
+
+      document.getElementById('lobby-settings-heading').textContent = `Round ${room.roundNumber || 1} Settings`;
+
+      if (isHost) {
+        hostControls.classList.remove('hidden');
+        guestPreview.classList.add('hidden');
+        startBtn.classList.remove('hidden');
+        roleBadge.textContent = '👑 You are Admin';
+
+        const minInp = document.getElementById('lobby-min-input');
+        const maxInp = document.getElementById('lobby-max-input');
+        if (document.activeElement !== minInp) minInp.value = room.min;
+        if (document.activeElement !== maxInp) maxInp.value = room.max;
+
+        document.getElementById('lobby-range-preview').textContent = `${room.min} — ${room.max}`;
+        document.getElementById('lobby-guesses-preview').textContent = room.maxGuesses === 0 ? '∞ Unlimited' : `${room.maxGuesses} Guesses`;
+
+        document.querySelectorAll('.lobby-guess-preset').forEach(b => {
+          const match = parseInt(b.dataset.lguesses, 10) === room.maxGuesses;
+          b.classList.toggle('pill-active', match);
+          b.classList.toggle('btn-glass', !match);
+        });
+        document.querySelectorAll('.lobby-mpmode-btn').forEach(b => {
+          const match = b.dataset.lmpmode === room.mpMode;
+          b.classList.toggle('pill-active', match);
+          b.classList.toggle('btn-glass', !match);
+        });
+        document.querySelectorAll('.lobby-secretmode-btn').forEach(b => {
+          const match = b.dataset.lsecretmode === room.secretMode;
+          b.classList.toggle('pill-active', match);
+          b.classList.toggle('btn-glass', !match);
+        });
+
+        const waitingOnOtherMaster = room.secretMode !== 'auto' && !room.secretReady && room.secretMasterId !== state.uid;
+        startBtn.textContent = waitingOnOtherMaster
+          ? `⏳ WAITING FOR ${masterLabel.toUpperCase()}...`
+          : `🚀 START ROUND ${room.roundNumber || 1}`;
+      } else {
+        hostControls.classList.add('hidden');
+        guestPreview.classList.remove('hidden');
+        startBtn.classList.add('hidden');
+        roleBadge.textContent = isSecretMaster ? '🎯 You are Secret Master' : '🎮 Player';
+
+        document.getElementById('guest-preview-range').textContent = `${room.min} — ${room.max}`;
+        document.getElementById('guest-preview-guesses').textContent = room.maxGuesses === 0 ? '∞ Unlimited' : `${room.maxGuesses} Guesses`;
+        document.getElementById('guest-preview-mode').textContent = room.mpMode === 'chaos' ? '🌪️ Shared Chaos' : '🕵️ Private Hints (Race)';
+        const secDescMap = {
+          rotation: '🔄 Everyone Takes Turns',
+          auto: '🎲 Auto-Random (All Play)',
+          custom: `👑 Custom (${masterLabel})`
+        };
+        document.getElementById('guest-preview-secret').textContent = secDescMap[room.secretMode] || '🔄 Everyone Takes Turns';
+        document.getElementById('lobby-guest-wait-text').textContent = `Waiting for ${room.hostUserId || 'Admin'} to start Round ${room.roundNumber || 1}...`;
+      }
+    }
+
+    function renderPastRoundsAccordion(pastRounds, accEl, countEl, listEl) {
+      if (!pastRounds || pastRounds.length === 0) {
+        accEl.classList.add('hidden');
+        return;
+      }
+      accEl.classList.remove('hidden');
+      countEl.textContent = pastRounds.length;
+      listEl.innerHTML = pastRounds.slice().reverse().map(r => `
+        <div class="rounded-xl bg-black/35 border border-white/10 px-3 py-2 flex items-center justify-between text-[11px]">
+          <div>
+            <span class="font-extrabold text-amber-300">R${r.roundNumber}:</span>
+            <span class="font-bold text-white">${escapeHtml(r.winnerUserId)}</span>
+            <span class="text-slate-400">(${r.guessesCount || '—'} guesses)</span>
+          </div>
+          <div class="text-right">
+            <span class="font-mono-num font-extrabold" style="color: var(--accent-primary);">#${r.secretNumber}</span>
+            <span class="text-[10px] text-slate-400 block">by ${escapeHtml(r.secretMasterUserId)}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Host Lobby Settings Update Helper
+    async function hostPatchLobbySettings(patchFields) {
+      const room = state.roomState;
+      if (!room || room.hostId !== state.uid) return;
+      const nextRoom = { ...room, ...patchFields, updatedAt: Date.now() };
+      state.roomState = nextRoom;
+      await cloud.updateAuthoritativeState(room.code, { ...patchFields, updatedAt: nextRoom.updatedAt }, nextRoom);
+      renderLobbyView(nextRoom);
+    }
+
+    document.querySelectorAll('.lobby-range-preset').forEach(btn => {
+      btn.addEventListener('click', () => {
+        audio.playClick();
+        const [min, max] = btn.dataset.lrange.split(',').map(Number);
+        document.querySelectorAll('.lobby-range-preset').forEach(b => {
+          b.classList.toggle('pill-active', b === btn);
+          b.classList.toggle('btn-glass', b !== btn);
+        });
+        hostPatchLobbySettings({ min, max, secretNumber: null, secretReady: false });
+      });
+    });
+
+    document.getElementById('lobby-min-input').addEventListener('change', (e) => {
+      const min = parseInt(e.target.value, 10);
+      const max = state.roomState?.max ?? 100;
+      if (!Number.isNaN(min) && min < max) {
+        hostPatchLobbySettings({ min, secretNumber: null, secretReady: false });
+      }
+    });
+
+    document.getElementById('lobby-max-input').addEventListener('change', (e) => {
+      const max = parseInt(e.target.value, 10);
+      const min = state.roomState?.min ?? 1;
+      if (!Number.isNaN(max) && max > min) {
+        hostPatchLobbySettings({ max, secretNumber: null, secretReady: false });
+      }
+    });
+
+    document.querySelectorAll('.lobby-guess-preset').forEach(btn => {
+      btn.addEventListener('click', () => {
+        audio.playClick();
+        const maxGuesses = parseInt(btn.dataset.lguesses, 10);
+        hostPatchLobbySettings({ maxGuesses });
+      });
+    });
+
+    document.querySelectorAll('.lobby-mpmode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        audio.playClick();
+        hostPatchLobbySettings({ mpMode: btn.dataset.lmpmode });
+      });
+    });
+
+    document.querySelectorAll('.lobby-secretmode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        audio.playClick();
+        const secretMode = btn.dataset.lsecretmode;
+        const room = state.roomState;
+        if (!room) return;
+        const orderedHumans = getOrderedHumanPlayers(room);
+        const curMasterId = room.secretMasterId || room.hostId;
+        const curMasterUser = room.players?.[curMasterId]?.userId || room.hostUserId;
+        const nextIdx = Math.max(0, orderedHumans.findIndex(p => p.id === curMasterId));
+
+        hostPatchLobbySettings({
+          secretMode,
+          rotationOrder: orderedHumans.map(p => p.id),
+          rotationIndex: nextIdx,
+          secretMasterId: secretMode === 'auto' ? null : curMasterId,
+          secretMasterUserId: secretMode === 'auto' ? 'Auto-Random' : curMasterUser,
+          secretNumber: null,
+          secretReady: false
+        });
+      });
+    });
+
     // Secret Master Custom Secret Input Controls
     document.getElementById('btn-lobby-secret-toggle').addEventListener('click', () => {
       audio.playClick();
@@ -2305,7 +3845,577 @@
       await cloud.updateAuthoritativeState(room.code, patch, nextRoom);
       showToast('👑 You claimed Room Admin Host!', 'success');
     });
-// ... existing code ... -->
+
+    document.getElementById('btn-lobby-lock-secret').addEventListener('click', async () => {
+      audio.playClick();
+      const room = state.roomState;
+      if (!room || room.secretMasterId !== state.uid) return;
+
+      const rawVal = parseInt(document.getElementById('lobby-custom-secret-input').value, 10);
+      if (Number.isNaN(rawVal) || rawVal < room.min || rawVal > room.max) {
+        showToast(`Secret number must be between ${room.min} and ${room.max}!`, 'error');
+        audio.playInvalidShake();
+        return;
+      }
+
+      const patch = {
+        secretNumber: rawVal,
+        secretReady: true,
+        secretMasterId: state.uid,
+        secretMasterUserId: state.profile.userId,
+        updatedAt: Date.now()
+      };
+      const nextRoom = { ...room, ...patch };
+
+      if (cloud.mode === 'firebase') {
+        await cloud.updateAuthoritativeState(room.code, patch, nextRoom);
+      } else if (room.hostId === state.uid) {
+        await cloud.updateAuthoritativeState(room.code, patch, nextRoom);
+      } else {
+        // Guest Secret Master sends SET_SECRET event to Host and updates local view
+        state.roomState = nextRoom;
+        cloud.publishMqttEvent(room.code, {
+          type: 'SET_SECRET',
+          masterId: state.uid,
+          masterUserId: state.profile.userId,
+          secretNumber: rawVal
+        });
+      }
+
+      renderLobbyView(nextRoom);
+      showToast('🔒 Secret locked in! You will spectate while friends guess!', 'success');
+    });
+
+    // Skip Turn in Rotation Mode (Host Action)
+    document.getElementById('btn-lobby-skip-turn').addEventListener('click', async () => {
+      audio.playClick();
+      const room = state.roomState;
+      if (!room || room.hostId !== state.uid) return;
+      const orderedHumans = getOrderedHumanPlayers(room);
+      if (orderedHumans.length <= 1) return;
+
+      const curIdx = Math.max(0, orderedHumans.findIndex(p => p.id === room.secretMasterId));
+      const nextIdx = (curIdx + 1) % orderedHumans.length;
+      const nextMaster = orderedHumans[nextIdx];
+
+      await hostPatchLobbySettings({
+        rotationOrder: orderedHumans.map(p => p.id),
+        rotationIndex: nextIdx,
+        secretMasterId: nextMaster.id,
+        secretMasterUserId: nextMaster.userId,
+        secretNumber: null,
+        secretReady: false
+      });
+      showToast(`⏭️ Skipped turn — now ${nextMaster.userId}'s turn to set secret!`, 'info');
+    });
+
+    // Assign Specific Member as Secret Master (Host Action)
+    async function assignSecretMaster(targetUid) {
+      audio.playHostCrownFanfare();
+      const room = state.roomState;
+      if (!room || room.hostId !== state.uid) return;
+      const targetPlayer = room.players?.[targetUid];
+      if (!targetPlayer || targetPlayer.isBot) return;
+
+      const orderedHumans = getOrderedHumanPlayers(room);
+      const nextIdx = Math.max(0, orderedHumans.findIndex(p => p.id === targetUid));
+      const nextSecretMode = room.secretMode === 'auto' ? 'custom' : room.secretMode;
+
+      await hostPatchLobbySettings({
+        secretMode: nextSecretMode,
+        rotationOrder: orderedHumans.map(p => p.id),
+        rotationIndex: nextIdx,
+        secretMasterId: targetUid,
+        secretMasterUserId: targetPlayer.userId,
+        secretNumber: null,
+        secretReady: false
+      });
+      showToast(`🎯 ${targetPlayer.userId} is now Secret Master for Round ${room.roundNumber || 1}!`, 'success');
+    }
+
+    // Transfer Room Admin Host Mid-Room
+    async function transferHostToPlayer(targetUid) {
+      audio.playHostCrownFanfare();
+      const room = state.roomState;
+      if (!room || room.hostId !== state.uid) return;
+      const targetPlayer = room.players?.[targetUid];
+      if (!targetPlayer || targetPlayer.isBot) return;
+
+      const nextPlayers = cloneObj(room.players || {});
+      Object.keys(nextPlayers).forEach(pid => {
+        nextPlayers[pid].isHost = (pid === targetUid);
+      });
+
+      const patch = {
+        hostId: targetUid,
+        hostUserId: targetPlayer.userId,
+        players: nextPlayers,
+        updatedAt: Date.now()
+      };
+      const nextRoom = { ...room, ...patch };
+      state.isRoomHost = (targetUid === state.uid);
+      if (!state.isRoomHost && state.heartbeatTimerId) {
+        clearInterval(state.heartbeatTimerId);
+        state.heartbeatTimerId = null;
+      }
+
+      await cloud.updateAuthoritativeState(room.code, patch, nextRoom);
+      renderLobbyView(nextRoom);
+      showToast(`👑 Transferred Room Admin to ${targetPlayer.userId}!`, 'success');
+    }
+
+    // Add / Remove AI Bots in Lobby
+    document.getElementById('btn-lobby-add-bot').addEventListener('click', async () => {
+      audio.playClick();
+      const room = state.roomState;
+      if (!room || room.hostId !== state.uid) return;
+
+      const existingBots = Object.values(room.players || {}).filter(p => p.isBot);
+      if (existingBots.length >= 3) {
+        showToast('Maximum 3 AI bots allowed per room!', 'warning');
+        return;
+      }
+      const profile = BOT_PROFILES[existingBots.length % BOT_PROFILES.length];
+      const botId = `bot_${existingBots.length + 1}_${Date.now().toString(36).slice(-3)}`;
+      const botPlayer = createInitialPlayerEntry(botId, profile, false, true);
+      botPlayer.privateLow = room.min;
+      botPlayer.privateHigh = room.max;
+
+      const nextPlayers = cloneObj(room.players || {});
+      nextPlayers[botId] = botPlayer;
+      const nextRoom = { ...room, players: nextPlayers, updatedAt: Date.now() };
+      await cloud.updateAuthoritativeState(room.code, { [`players.${botId}`]: botPlayer, updatedAt: nextRoom.updatedAt }, nextRoom);
+      renderLobbyView(nextRoom);
+    });
+
+    async function removeBotFromLobby(botId) {
+      audio.playClick();
+      const room = state.roomState;
+      if (!room || room.hostId !== state.uid) return;
+      const nextPlayers = cloneObj(room.players || {});
+      delete nextPlayers[botId];
+      const nextRoom = { ...room, players: nextPlayers, updatedAt: Date.now() };
+      if (cloud.mode === 'firebase' && cloud.fbFns) {
+        await cloud.fbFns.updateDoc(cloud.getRoomDocRef(room.code), {
+          [`players.${botId}`]: cloud.fbFns.deleteField(),
+          updatedAt: nextRoom.updatedAt
+        });
+      } else {
+        await cloud.updateAuthoritativeState(room.code, {}, nextRoom);
+      }
+      renderLobbyView(nextRoom);
+    }
+
+    // Copy Room Code & Share Invite Link
+    document.getElementById('btn-copy-code').addEventListener('click', () => {
+      audio.playClick();
+      const code = state.roomCode || '';
+      copyTextFallback(code);
+      showToast(`📋 Room Code "${code}" copied!`, 'success');
+    });
+
+    document.getElementById('btn-share-invite').addEventListener('click', async () => {
+      audio.playClick();
+      const code = state.roomCode || '';
+      const url = new URL(window.location.href);
+      url.searchParams.set('room', code);
+      const shareUrl = url.toString();
+
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: 'GUESS THE NUMBER — Online Arena',
+            text: `Join my Guess The Number room! Code: ${code}`,
+            url: shareUrl
+          });
+          return;
+        } catch (_) {}
+      }
+      copyTextFallback(shareUrl);
+      showToast('🔗 Invite link copied to clipboard!', 'success');
+    });
+
+    function copyTextFallback(text) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+      } catch (_) {}
+    }
+
+    document.getElementById('btn-lobby-leave').addEventListener('click', async () => {
+      audio.playClick();
+      await leaveCurrentRoomGracefully();
+      showView('view-hub');
+    });
+
+    // START ROUND BUTTON (Host Action)
+    document.getElementById('btn-lobby-start').addEventListener('click', async () => {
+      audio.playClick();
+      const room = state.roomState;
+      if (!room || room.hostId !== state.uid) return;
+
+      if (room.max <= room.min) {
+        showToast('Max range must be greater than Min range!', 'error');
+        audio.playInvalidShake();
+        return;
+      }
+
+      let roundSecret = room.secretNumber;
+      let activeMasterId = room.secretMasterId;
+
+      if (room.secretMode === 'auto') {
+        roundSecret = Math.floor(Math.random() * (room.max - room.min + 1)) + room.min;
+        activeMasterId = null;
+      } else {
+        // If Host is the Secret Master and typed a valid number without clicking Lock In, auto-lock it!
+        if (activeMasterId === state.uid && (!room.secretReady || roundSecret === null)) {
+          const typed = parseInt(document.getElementById('lobby-custom-secret-input').value, 10);
+          if (!Number.isNaN(typed) && typed >= room.min && typed <= room.max) {
+            roundSecret = typed;
+          }
+        }
+        if (roundSecret === null || typeof roundSecret !== 'number' || roundSecret < room.min || roundSecret > room.max) {
+          const masterName = room.players?.[activeMasterId]?.userId || room.secretMasterUserId || 'Secret Master';
+          showToast(`⏳ Waiting for ${masterName} to lock in a secret number (${room.min}–${room.max})!`, 'warning');
+          audio.playInvalidShake();
+          return;
+        }
+      }
+
+      // Ensure at least 1 active guesser exists
+      const allPlayers = Object.values(room.players || {});
+      const activeGuessers = allPlayers.filter(p => p.id !== activeMasterId);
+      if (activeGuessers.length === 0) {
+        showToast('Invite a friend or tap "+ Add Bot" so someone can guess your secret number!', 'warning');
+        audio.playInvalidShake();
+        return;
+      }
+
+      const nextPlayers = cloneObj(room.players || {});
+      Object.keys(nextPlayers).forEach(pid => {
+        nextPlayers[pid].isSpectator = (activeMasterId !== null && pid === activeMasterId);
+        nextPlayers[pid].guessCount = 0;
+        nextPlayers[pid].solved = false;
+        nextPlayers[pid].outOfGuesses = false;
+        nextPlayers[pid].privateLow = room.min;
+        nextPlayers[pid].privateHigh = room.max;
+        nextPlayers[pid].guesses = [];
+      });
+
+      const patch = {
+        status: 'playing',
+        secretNumber: roundSecret,
+        secretReady: true,
+        justCompletedCycle: false,
+        sharedLow: room.min,
+        sharedHigh: room.max,
+        sharedGuesses: [],
+        winnerId: null,
+        winnerUserId: null,
+        winnerGuessesCount: 0,
+        players: nextPlayers,
+        updatedAt: Date.now()
+      };
+      const nextRoom = { ...room, ...patch };
+      state.spectatorSecretVisible = false;
+      await cloud.updateAuthoritativeState(room.code, patch, nextRoom);
+      handleIncomingRoomState(nextRoom);
+    });
+
+    /* ===================================================================
+       12. ONLINE ARENA RENDERING, GUESS SUBMISSION & BOT AI
+       =================================================================== */
+    function renderOnlineArenaView(room) {
+      const me = room.players?.[state.uid];
+      const isSpectator = !me || me.isSpectator || (room.secretMode !== 'auto' && room.secretMasterId === state.uid);
+
+      document.getElementById('arena-round-pill').textContent = `ROUND ${room.roundNumber || 1}`;
+      document.getElementById('arena-mode-pill').textContent = room.mpMode === 'chaos' ? '🌪️ SHARED CHAOS' : '🕵️ PRIVATE RACE';
+      const roomPill = document.getElementById('arena-room-pill');
+      roomPill.classList.remove('hidden');
+      roomPill.textContent = `ROOM: ${room.code}`;
+
+      // Guesses Left Badge
+      const badge = document.getElementById('arena-guesses-badge');
+      const guessesText = document.getElementById('arena-guesses-text');
+      if (isSpectator) {
+        guessesText.textContent = '🤫 SPECTATING';
+        badge.classList.remove('animate-danger-pulse');
+      } else {
+        const used = me?.guessCount || 0;
+        const left = room.maxGuesses === 0 ? '∞' : Math.max(0, room.maxGuesses - used);
+        guessesText.textContent = room.maxGuesses === 0 ? `${used} Used (∞)` : `${left} / ${room.maxGuesses} Left`;
+        badge.classList.toggle('animate-danger-pulse', room.maxGuesses > 0 && left === 1 && !me?.solved);
+      }
+
+      // Live Players Strip
+      const stripEl = document.getElementById('arena-players-strip');
+      const stripList = document.getElementById('arena-players-list');
+      stripEl.classList.remove('hidden');
+      const playersList = Object.values(room.players || {}).sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
+      stripList.innerHTML = playersList.map(p => {
+        let statusTag = `${p.guessCount || 0}/${room.maxGuesses === 0 ? '∞' : room.maxGuesses}`;
+        if (p.isSpectator) statusTag = '🤫 Secret Master';
+        else if (p.solved) statusTag = '🏆 Solved!';
+        else if (p.outOfGuesses) statusTag = '❌ Out';
+
+        return `
+          <div class="shrink-0 rounded-2xl px-3 py-2 bg-black/40 border ${p.id === state.uid ? 'border-cyan-400/50' : 'border-white/10'} flex items-center gap-2">
+            <span class="text-lg">${p.avatar}</span>
+            <div>
+              <div class="text-[11px] font-extrabold leading-tight" style="color: ${p.color || '#00f5d4'};">
+                ${escapeHtml(p.userId)} <span class="text-amber-300">(${p.roundWins || 0}🏆)</span>
+              </div>
+              <div class="text-[10px] font-bold text-slate-300">${statusTag}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Dynamic Target Zone Bar
+      const lowBound = room.mpMode === 'chaos' ? (room.sharedLow ?? room.min) : (me?.privateLow ?? room.min);
+      const highBound = room.mpMode === 'chaos' ? (room.sharedHigh ?? room.max) : (me?.privateHigh ?? room.max);
+      updateRangeVisualBar(room.min, room.max, lowBound, highBound);
+
+      // Controls vs Secret Master Spectator Box
+      const controls = document.getElementById('arena-controls-wrapper');
+      const specBox = document.getElementById('arena-spectator-box');
+      const specPill = document.getElementById('spectator-secret-pill');
+
+      if (isSpectator) {
+        controls.classList.add('hidden');
+        specBox.classList.remove('hidden');
+        document.getElementById('spectator-icon').textContent = '🤫';
+        document.getElementById('spectator-title').textContent = 'Secret Master Spectator View';
+        document.getElementById('spectator-desc').textContent = 'You set the secret number! Watch your friends battle to crack it live.';
+        if (room.secretNumber !== null) {
+          specPill.classList.remove('hidden');
+          document.getElementById('spectator-secret-value').textContent = state.spectatorSecretVisible ? room.secretNumber : '••••';
+          document.getElementById('btn-spectator-peek').textContent = state.spectatorSecretVisible ? '🙈 Hide' : '👁️ Peek';
+        } else {
+          specPill.classList.add('hidden');
+        }
+      } else if (me?.outOfGuesses) {
+        controls.classList.add('hidden');
+        specBox.classList.remove('hidden');
+        specPill.classList.add('hidden');
+        document.getElementById('spectator-icon').textContent = '⏳';
+        document.getElementById('spectator-title').textContent = 'Out of Guesses — Spectating';
+        document.getElementById('spectator-desc').textContent = 'You used all your guesses! Watch the remaining players finish this round.';
+      } else {
+        controls.classList.remove('hidden');
+        specBox.classList.add('hidden');
+      }
+
+      // Guess History & Proximity Radar
+      const feedGuesses = (room.mpMode === 'chaos' || isSpectator)
+        ? (room.sharedGuesses && room.sharedGuesses.length > 0
+            ? room.sharedGuesses
+            : playersList.flatMap(p => p.guesses || []).sort((a, b) => (a.ts || 0) - (b.ts || 0)))
+        : (me?.guesses || []);
+
+      const lastGuess = feedGuesses[feedGuesses.length - 1];
+      updateRadarFromLastGuess(lastGuess, room.min, room.max);
+      renderGuessHistoryList(feedGuesses, room.mpMode === 'chaos' || isSpectator);
+    }
+
+    document.getElementById('btn-spectator-peek').addEventListener('click', () => {
+      audio.playClick();
+      state.spectatorSecretVisible = !state.spectatorSecretVisible;
+      if (state.roomState) renderOnlineArenaView(state.roomState);
+    });
+
+    async function handleOnlineGuess(num) {
+      const room = state.roomState;
+      if (!room || room.status !== 'playing') return;
+      const me = room.players?.[state.uid];
+      if (!me || me.isSpectator || me.solved || me.outOfGuesses) return;
+
+      if (num < room.min || num > room.max) {
+        showToast(`Please pick a number between ${room.min} and ${room.max}!`, 'warning');
+        audio.playInvalidShake();
+        return;
+      }
+
+      audio.playGuessPop();
+
+      if (cloud.mode === 'firebase') {
+        const nextRoom = cloneObj(room);
+        applyGuessToRoomState(nextRoom, state.uid, num);
+        nextRoom.updatedAt = Date.now();
+        await cloud.updateAuthoritativeState(room.code, {
+          status: nextRoom.status,
+          sharedLow: nextRoom.sharedLow,
+          sharedHigh: nextRoom.sharedHigh,
+          sharedGuesses: nextRoom.sharedGuesses,
+          winnerId: nextRoom.winnerId,
+          winnerUserId: nextRoom.winnerUserId,
+          winnerGuessesCount: nextRoom.winnerGuessesCount,
+          pastRounds: nextRoom.pastRounds,
+          [`players.${state.uid}`]: nextRoom.players[state.uid],
+          updatedAt: nextRoom.updatedAt
+        }, nextRoom);
+      } else if (state.isRoomHost) {
+        const nextRoom = cloneObj(room);
+        applyGuessToRoomState(nextRoom, state.uid, num);
+        nextRoom.updatedAt = Date.now();
+        state.roomState = nextRoom;
+        cloud.publishMqttState(nextRoom);
+        handleIncomingRoomState(nextRoom);
+      } else {
+        cloud.publishMqttEvent(room.code, {
+          type: 'SUBMIT_GUESS',
+          playerId: state.uid,
+          guess: num
+        });
+      }
+    }
+
+    function startHostBotRunner() {
+      if (state.botTimerId) clearInterval(state.botTimerId);
+      state.botTimerId = setInterval(async () => {
+        const room = state.roomState;
+        if (!room || !state.isRoomHost || room.status !== 'playing') return;
+
+        const bots = Object.values(room.players || {}).filter(p => p.isBot && !p.isSpectator && !p.solved && !p.outOfGuesses);
+        if (bots.length === 0) return;
+
+        const bot = bots[Math.floor(Math.random() * bots.length)];
+        const low = room.mpMode === 'chaos' ? (room.sharedLow ?? room.min) : (bot.privateLow ?? room.min);
+        const high = room.mpMode === 'chaos' ? (room.sharedHigh ?? room.max) : (bot.privateHigh ?? room.max);
+        const safeLow = Math.max(room.min, Math.min(room.max, low));
+        const safeHigh = Math.max(safeLow, Math.min(room.max, high));
+        const mid = Math.floor((safeLow + safeHigh) / 2);
+        const jitter = Math.floor((Math.random() - 0.5) * Math.max(2, Math.floor((safeHigh - safeLow) * 0.25)));
+        const botGuess = Math.max(safeLow, Math.min(safeHigh, mid + jitter));
+
+        const nextRoom = cloneObj(room);
+        applyGuessToRoomState(nextRoom, bot.id, botGuess);
+        nextRoom.updatedAt = Date.now();
+        state.roomState = nextRoom;
+
+        await cloud.updateAuthoritativeState(room.code, {
+          status: nextRoom.status,
+          sharedLow: nextRoom.sharedLow,
+          sharedHigh: nextRoom.sharedHigh,
+          sharedGuesses: nextRoom.sharedGuesses,
+          winnerId: nextRoom.winnerId,
+          winnerUserId: nextRoom.winnerUserId,
+          winnerGuessesCount: nextRoom.winnerGuessesCount,
+          pastRounds: nextRoom.pastRounds,
+          [`players.${bot.id}`]: nextRoom.players[bot.id],
+          updatedAt: nextRoom.updatedAt
+        }, nextRoom);
+
+        if (cloud.mode === 'mqtt') {
+          handleIncomingRoomState(nextRoom);
+        }
+      }, 2800);
+    }
+
+    /* ===================================================================
+       13. SHARED ARENA UI HELPERS (RANGE BAR, RADAR, HISTORY, REACTIONS)
+       =================================================================== */
+    function computeTemperature(diff, pctDiff) {
+      if (diff === 0) return { tier: 'exact', label: 'BULLSEYE!', icon: '🎯' };
+      if (pctDiff <= 0.04 || diff <= 2) return { tier: 'scorching', label: 'SCORCHING!', icon: '🔥' };
+      if (pctDiff <= 0.12) return { tier: 'hot', label: 'VERY HOT', icon: '♨️' };
+      if (pctDiff <= 0.26) return { tier: 'warm', label: 'WARM', icon: '☀️' };
+      if (pctDiff <= 0.48) return { tier: 'cool', label: 'COOL', icon: '❄️' };
+      return { tier: 'freezing', label: 'FREEZING', icon: '🧊' };
+    }
+
+    function updateRangeVisualBar(globalMin, globalMax, curLow, curHigh) {
+      const safeLow = Math.max(globalMin, Math.min(globalMax, curLow));
+      const safeHigh = Math.max(safeLow, Math.min(globalMax, curHigh));
+      const totalSpan = Math.max(1, globalMax - globalMin);
+      const leftPct = ((safeLow - globalMin) / totalSpan) * 100;
+      const widthPct = Math.max(3, ((safeHigh - safeLow) / totalSpan) * 100);
+      const possibilities = Math.max(1, safeHigh - safeLow + 1);
+
+      document.getElementById('range-bounds-label').textContent = `${safeLow} — ${safeHigh}`;
+      document.getElementById('range-possibilities-label').textContent = `${possibilities} number${possibilities === 1 ? '' : 's'} left`;
+      document.getElementById('range-min-tick').textContent = globalMin;
+      document.getElementById('range-max-tick').textContent = globalMax;
+
+      const fill = document.getElementById('range-bar-active-fill');
+      fill.style.left = `${leftPct}%`;
+      fill.style.width = `${Math.min(100 - leftPct, widthPct)}%`;
+    }
+
+    function updateRadarFromLastGuess(lastGuess) {
+      const iconEl = document.getElementById('radar-icon');
+      const headEl = document.getElementById('radar-headline');
+      const subEl = document.getElementById('radar-subtext');
+
+      if (!lastGuess) {
+        iconEl.textContent = '📡';
+        headEl.textContent = 'READY TO SCAN';
+        subEl.textContent = 'Enter your first number below to lock onto the secret target!';
+        return;
+      }
+
+      iconEl.textContent = lastGuess.tempIcon || '📡';
+      if (lastGuess.direction === 'exact') {
+        headEl.textContent = `🎯 ${lastGuess.num} — EXACT MATCH!`;
+        subEl.textContent = `${lastGuess.userId || 'Player'} cracked the secret number!`;
+      } else if (lastGuess.direction === 'low') {
+        headEl.textContent = `⬆️ HIGHER THAN ${lastGuess.num} (${lastGuess.tempLabel})`;
+        subEl.textContent = `Secret number is strictly greater than ${lastGuess.num}.`;
+      } else {
+        headEl.textContent = `⬇️ LOWER THAN ${lastGuess.num} (${lastGuess.tempLabel})`;
+        subEl.textContent = `Secret number is strictly smaller than ${lastGuess.num}.`;
+      }
+    }
+
+    function renderGuessHistoryList(guesses, showPlayerNames) {
+      const listEl = document.getElementById('guess-history-list');
+      const titleEl = document.getElementById('history-feed-title');
+      const countEl = document.getElementById('history-feed-count');
+
+      titleEl.textContent = showPlayerNames ? 'Live Arena Guess Feed' : 'Your Guess History';
+      countEl.textContent = `${guesses.length} Guess${guesses.length === 1 ? '' : 'es'}`;
+
+      if (!guesses || guesses.length === 0) {
+        listEl.innerHTML = `
+          <div class="text-xs text-slate-400 text-center py-10 px-4 rounded-2xl bg-black/25">
+            No guesses yet — submit a number to start scanning!
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = guesses.slice().reverse().map((g, revIdx) => {
+        const turnNum = guesses.length - revIdx;
+        const dirBadge = g.direction === 'exact'
+          ? '<span class="px-2 py-0.5 rounded-lg bg-emerald-500/25 text-emerald-300 text-[10px] font-extrabold">🎯 EXACT</span>'
+          : g.direction === 'low'
+            ? '<span class="px-2 py-0.5 rounded-lg bg-cyan-500/20 text-cyan-200 text-[10px] font-extrabold">⬆️ HIGHER</span>'
+            : '<span class="px-2 py-0.5 rounded-lg bg-pink-500/20 text-pink-200 text-[10px] font-extrabold">⬇️ LOWER</span>';
+
+        return `
+          <div class="glass-subcard rounded-2xl px-3.5 py-2.5 flex items-center justify-between gap-2 border border-white/10">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="font-mono-num text-[11px] font-bold text-slate-400">#${turnNum}</span>
+              <span class="font-mono-num text-base sm:text-lg font-extrabold text-white">${g.num}</span>
+              ${showPlayerNames ? `<span class="text-[11px] font-bold text-slate-300 truncate">${g.avatar || ''} ${escapeHtml(g.userId || '')}</span>` : ''}
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span class="text-[10px] font-bold text-slate-300">${g.tempIcon || ''} ${escapeHtml(g.tempLabel || '')}</span>
+              ${dirBadge}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Guess Input, Quick-Adjust, Touch Numpad & Emoji Reactions
     document.querySelectorAll('.quick-adjust-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         audio.playClick();
@@ -2350,11 +4460,350 @@
     });
 
     document.getElementById('btn-submit-guess').addEventListener('click', () => {
-// ... existing code ... -->
+      const inputEl = document.getElementById('input-guess-number');
+      const val = parseInt(inputEl.value, 10);
+      if (Number.isNaN(val)) {
+        showToast('Enter a number first!', 'warning');
+        audio.playInvalidShake();
+        return;
+      }
+      inputEl.value = '';
+      if (state.activeMode === 'online') {
+        handleOnlineGuess(val);
+      } else {
+        handleSoloGuess(val);
+      }
+    });
+
+    document.getElementById('input-guess-number').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('btn-submit-guess').click();
+      }
+    });
+
+    document.querySelectorAll('.reaction-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const emoji = btn.dataset.reaction;
+        const room = state.roomState;
+        if (!room || state.activeMode !== 'online') return;
+
+        const rxId = makeEventId();
+        state.seenReactionIds.add(rxId);
+        spawnFloatingReaction(emoji, state.profile.userId);
+
+        if (cloud.mode === 'firebase') {
+          const nextReactions = [...(room.reactions || []).slice(-10), {
+            id: rxId,
+            emoji,
+            userId: state.profile.userId,
+            ts: Date.now()
+          }];
+          await cloud.updateAuthoritativeState(room.code, { reactions: nextReactions, updatedAt: Date.now() }, { ...room, reactions: nextReactions });
+        } else {
+          cloud.publishMqttEvent(room.code, {
+            type: 'REACTION',
+            eventId: rxId,
+            emoji,
+            userId: state.profile.userId
+          });
+        }
+      });
+    });
+
+    document.getElementById('btn-arena-exit').addEventListener('click', async () => {
+      audio.playClick();
+      if (state.activeMode === 'online') {
+        await leaveCurrentRoomGracefully();
+      }
+      showView('view-hub');
+    });
+
+    /* ===================================================================
+       14. MULTI-ROUND ONLINE RESULTS & NEXT-ROUND TURN ADVANCE
+       =================================================================== */
+    function renderOnlineResults(room) {
+      const isHost = room.hostId === state.uid;
+      const hasWinner = Boolean(room.winnerId);
+      const roundKey = `${room.code}_r${room.roundNumber || 1}`;
+
+      if (state.lastCelebratedRoundKey !== roundKey) {
+        state.lastCelebratedRoundKey = roundKey;
+        if (hasWinner) {
+          audio.playWinFanfare();
+          triggerConfettiBurst();
+          if (room.winnerId === state.uid) {
+            state.profile.wins = (state.profile.wins || 0) + 1;
+          }
+        } else {
+          audio.playLoseSound();
+        }
+        state.profile.gamesPlayed = (state.profile.gamesPlayed || 0) + 1;
+        saveProfile();
+        updateProfileUI();
+      }
+
+      document.getElementById('results-trophy-icon').textContent = hasWinner ? '🏆' : '💥';
+      document.getElementById('results-round-pill').textContent = `ROUND ${room.roundNumber || 1} COMPLETE`;
+      document.getElementById('results-title').textContent = hasWinner
+        ? `${room.winnerUserId} Wins Round ${room.roundNumber || 1}!`
+        : 'Nobody Cracked the Code!';
+      document.getElementById('results-subtitle').textContent = hasWinner
+        ? `Guessed the secret number in ${room.winnerGuessesCount} attempt${room.winnerGuessesCount === 1 ? '' : 's'}!`
+        : 'All active guessers ran out of guesses!';
+
+      document.getElementById('results-secret-number').textContent = room.secretNumber ?? '?';
+      const setterEl = document.getElementById('results-secret-setter');
+      setterEl.classList.remove('hidden');
+      setterEl.textContent = room.secretMode === 'auto'
+        ? '🎲 Secret generated by Auto-Random'
+        : `🤫 Secret set by ${room.secretMasterUserId || room.hostUserId}`;
+
+      // Show Up-Next Rotation Queue Preview
+      renderRotationQueueStrip(
+        room,
+        document.getElementById('results-rotation-strip'),
+        document.getElementById('results-rotation-list')
+      );
+
+      // Standings & Total Wins Leaderboard
+      const players = Object.values(room.players || {}).sort((a, b) => {
+        if (a.id === room.winnerId) return -1;
+        if (b.id === room.winnerId) return 1;
+        return (b.roundWins || 0) - (a.roundWins || 0);
+      });
+
+      document.getElementById('results-standings-list').innerHTML = players.map(p => {
+        const isRoundWinner = p.id === room.winnerId;
+        const wasMaster = room.secretMode !== 'auto' && p.id === room.secretMasterId;
+        let statusBadge = `<span class="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-white/10 text-slate-300">${p.guessCount || 0} guesses</span>`;
+        if (isRoundWinner) {
+          statusBadge = `<span class="px-2.5 py-1 rounded-xl text-[11px] font-extrabold bg-emerald-500/25 text-emerald-300">🏆 WINNER (${p.guessCount})</span>`;
+        } else if (wasMaster) {
+          statusBadge = `<span class="px-2.5 py-1 rounded-xl text-[11px] font-extrabold bg-amber-500/20 text-amber-200">🤫 SECRET MASTER</span>`;
+        } else if (p.outOfGuesses) {
+          statusBadge = `<span class="px-2.5 py-1 rounded-xl text-[11px] font-extrabold bg-rose-500/20 text-rose-300">❌ OUT (${p.guessCount})</span>`;
+        }
+
+        return `
+          <div class="glass-subcard rounded-2xl p-3.5 flex items-center justify-between gap-2 border ${isRoundWinner ? 'border-emerald-400/50' : 'border-white/10'}">
+            <div class="flex items-center gap-3 min-w-0">
+              <span class="text-2xl">${p.avatar}</span>
+              <div class="min-w-0">
+                <div class="font-bold text-xs sm:text-sm truncate" style="color: ${p.color || '#00f5d4'};">
+                  ${escapeHtml(p.userId)} ${p.id === state.uid ? '<span class="text-[10px] text-white">(You)</span>' : ''}
+                </div>
+                <div class="text-[11px] text-amber-300 font-bold">
+                  Total Room Wins: ${p.roundWins || 0} 🏆
+                </div>
+              </div>
+            </div>
+            ${statusBadge}
+          </div>
+        `;
+      }).join('');
+
+      // Past Rounds Log Accordion
+      renderPastRoundsAccordion(
+        room.pastRounds || [],
+        document.getElementById('results-history-accordion'),
+        document.getElementById('results-history-count'),
+        document.getElementById('results-history-list')
+      );
+
+      // Host vs Guest Action Controls
+      const hostActions = document.getElementById('results-online-host-actions');
+      const guestWait = document.getElementById('results-online-guest-wait');
+      document.getElementById('results-solo-actions').classList.add('hidden');
+
+      if (isHost) {
+        hostActions.classList.remove('hidden');
+        guestWait.classList.add('hidden');
+
+        const nextRoundBtn = document.getElementById('btn-results-next-round');
+        const orderedHumans = getOrderedHumanPlayers(room);
+        if (room.secretMode === 'rotation' && orderedHumans.length > 0) {
+          const curIdx = Math.max(0, orderedHumans.findIndex(p => p.id === room.secretMasterId));
+          const nextIdx = (curIdx + 1) % orderedHumans.length;
+          const upNextPlayer = orderedHumans[nextIdx];
+          nextRoundBtn.textContent = `🔄 Next Round — ${upNextPlayer.userId}'s Turn to Set Secret!`;
+        } else {
+          nextRoundBtn.textContent = `🔄 Next Round (Round ${(room.roundNumber || 1) + 1} in Same Room)`;
+        }
+
+        const winHostBtn = document.getElementById('btn-results-winner-host');
+        const winnerPlayer = room.winnerId ? room.players?.[room.winnerId] : null;
+        if (winnerPlayer && !winnerPlayer.isBot && winnerPlayer.id !== state.uid) {
+          winHostBtn.classList.remove('hidden');
+          winHostBtn.textContent = `🏆 Make ${winnerPlayer.userId} Host & Next Round`;
+        } else {
+          winHostBtn.classList.add('hidden');
+        }
+
+        const passHostBtn = document.getElementById('btn-results-pass-host');
+        const otherHumans = orderedHumans.filter(p => p.id !== state.uid);
+        if (otherHumans.length > 0) {
+          passHostBtn.classList.remove('hidden');
+        } else {
+          passHostBtn.classList.add('hidden');
+        }
+      } else {
+        hostActions.classList.add('hidden');
+        guestWait.classList.remove('hidden');
+        document.getElementById('results-guest-wait-text').textContent =
+          `Waiting for ${room.hostUserId || 'Admin'} to start Round ${(room.roundNumber || 1) + 1} in this room...`;
+      }
+    }
+
+    async function advanceRoomToNextRound(optionalNewHostUid = null) {
+      const room = state.roomState;
+      if (!room || room.hostId !== state.uid) return;
+
+      const nextRoundNumber = (room.roundNumber || 1) + 1;
+      const orderedHumans = getOrderedHumanPlayers(room);
+      const nextPlayers = cloneObj(room.players || {});
+
+      // Optional Host Transfer
+      let nextHostId = room.hostId;
+      let nextHostUserId = room.hostUserId;
+      if (optionalNewHostUid && nextPlayers[optionalNewHostUid] && !nextPlayers[optionalNewHostUid].isBot) {
+        nextHostId = optionalNewHostUid;
+        nextHostUserId = nextPlayers[optionalNewHostUid].userId;
+      }
+
+      // Advance Secret Master Turn in Rotation Mode
+      let nextRotationIndex = room.rotationIndex || 0;
+      let nextRotationCycle = room.rotationCycle || 1;
+      let justCompletedCycle = false;
+      let nextSecretMasterId = room.secretMasterId;
+      let nextSecretMasterUserId = room.secretMasterUserId;
+
+      if (room.secretMode === 'rotation' && orderedHumans.length > 0) {
+        const curIdx = Math.max(0, orderedHumans.findIndex(p => p.id === room.secretMasterId));
+        nextRotationIndex = (curIdx + 1) % orderedHumans.length;
+        if (nextRotationIndex === 0 && orderedHumans.length > 1) {
+          nextRotationCycle += 1;
+          justCompletedCycle = true;
+        }
+        const upNext = orderedHumans[nextRotationIndex];
+        nextSecretMasterId = upNext.id;
+        nextSecretMasterUserId = upNext.userId;
+      } else if (room.secretMode === 'custom') {
+        nextSecretMasterId = nextHostId;
+        nextSecretMasterUserId = nextHostUserId;
+      } else {
+        nextSecretMasterId = null;
+        nextSecretMasterUserId = 'Auto-Random';
+      }
+
+      Object.keys(nextPlayers).forEach(pid => {
+        nextPlayers[pid].isHost = (pid === nextHostId);
+        nextPlayers[pid].isSpectator = false;
+        nextPlayers[pid].guessCount = 0;
+        nextPlayers[pid].solved = false;
+        nextPlayers[pid].outOfGuesses = false;
+        nextPlayers[pid].privateLow = room.min;
+        nextPlayers[pid].privateHigh = room.max;
+        nextPlayers[pid].guesses = [];
+      });
+
+      const patch = {
+        status: 'waiting',
+        roundNumber: nextRoundNumber,
+        hostId: nextHostId,
+        hostUserId: nextHostUserId,
+        rotationOrder: orderedHumans.map(p => p.id),
+        rotationIndex: nextRotationIndex,
+        rotationCycle: nextRotationCycle,
+        justCompletedCycle,
+        secretMasterId: nextSecretMasterId,
+        secretMasterUserId: nextSecretMasterUserId,
+        secretNumber: null,
+        secretReady: false,
+        sharedLow: room.min,
+        sharedHigh: room.max,
+        sharedGuesses: [],
+        winnerId: null,
+        winnerUserId: null,
+        winnerGuessesCount: 0,
+        players: nextPlayers,
+        updatedAt: Date.now()
+      };
+
+      const nextRoom = { ...room, ...patch };
+      state.isRoomHost = (nextHostId === state.uid);
+      if (!state.isRoomHost && state.heartbeatTimerId) {
+        clearInterval(state.heartbeatTimerId);
+        state.heartbeatTimerId = null;
+      }
+
+      await cloud.updateAuthoritativeState(room.code, patch, nextRoom);
+      handleIncomingRoomState(nextRoom);
+    }
+
+    document.getElementById('btn-results-next-round').addEventListener('click', () => {
+      audio.playClick();
+      advanceRoomToNextRound(null);
+    });
+
+    document.getElementById('btn-results-winner-host').addEventListener('click', () => {
+      audio.playHostCrownFanfare();
+      const winnerId = state.roomState?.winnerId;
+      advanceRoomToNextRound(winnerId || null);
+    });
+
+    document.getElementById('btn-results-pass-host').addEventListener('click', () => {
+      audio.playHostCrownFanfare();
+      const room = state.roomState;
+      if (!room) return;
+      const orderedHumans = getOrderedHumanPlayers(room);
+      const curHostIdx = Math.max(0, orderedHumans.findIndex(p => p.id === room.hostId));
+      const nextHost = orderedHumans[(curHostIdx + 1) % orderedHumans.length];
+      advanceRoomToNextRound(nextHost ? nextHost.id : null);
+    });
+
+    document.getElementById('btn-results-solo-again').addEventListener('click', () => {
+      audio.playClick();
+      if (state.soloGame) {
+        startSoloMatch({
+          min: state.soloGame.min,
+          max: state.soloGame.max,
+          maxGuesses: state.soloGame.maxGuesses
+        });
+      } else {
+        showView('view-setup');
+      }
+    });
+
     document.getElementById('btn-results-hub').addEventListener('click', async () => {
       audio.playClick();
       await leaveCurrentRoomGracefully();
       showView('view-hub');
+    });
+
+    // Re-sync automatically when mobile player switches back from WhatsApp / Telegram
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState === 'visible') {
+        if (cloud.mode === 'mqtt' && (!cloud.mqttClient || !cloud.mqttClient.connected)) {
+          const mqttLib = await window.__mqttReadyPromise;
+          if (mqttLib) cloud.raceMqttBrokers(mqttLib);
+        }
+        if (state.activeMode === 'online' && state.roomCode) {
+          const fresh = await cloud.forceSyncRoom(state.roomCode);
+          if (fresh) handleIncomingRoomState(fresh);
+        }
+      }
+    });
+
+    window.addEventListener('online', async () => {
+      if (cloud.mode === 'mqtt') {
+        const mqttLib = await window.__mqttReadyPromise;
+        if (mqttLib) cloud.raceMqttBrokers(mqttLib);
+      }
+      if (state.activeMode === 'online' && state.roomCode) {
+        const fresh = await cloud.forceSyncRoom(state.roomCode);
+        if (fresh) handleIncomingRoomState(fresh);
+      }
     });
 
     window.addEventListener('pagehide', () => {
@@ -2414,16 +4863,14 @@
     }
 
     /* ===================================================================
-       16. BOOT APPLICATION ON WINDOW LOAD
+       16. IMMEDIATE BOOT APPLICATION (MOBILE-SAFE DOM READY CHECK)
        =================================================================== */
-    window.addEventListener('load', async () => {
+    async function bootApp() {
       loadSavedProfile();
       initPickers();
       updateProfileUI();
       syncRangePreview();
       syncGuessesPreview();
-
-      await cloud.init();
 
       if (state.pendingInviteRoom) {
         document.getElementById('login-invite-code').textContent = state.pendingInviteRoom;
@@ -2432,17 +4879,24 @@
 
       if (state.profile.userId) {
         document.getElementById('input-userid').value = state.profile.userId.replace(/^@/, '');
-        if (state.pendingInviteRoom) {
-          const inviteCode = state.pendingInviteRoom;
-          state.pendingInviteRoom = null;
-          showView('view-hub');
-          validateJoinCodeInput(inviteCode);
-          setTimeout(() => joinOnlineRoom(inviteCode), 300);
-        } else {
-          showView('view-hub');
-        }
+        showView('view-hub');
       }
-    });
+
+      await cloud.init();
+
+      if (state.profile.userId && state.pendingInviteRoom) {
+        const inviteCode = state.pendingInviteRoom;
+        state.pendingInviteRoom = null;
+        validateJoinCodeInput(inviteCode);
+        setTimeout(() => joinOnlineRoom(inviteCode), 250);
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', bootApp);
+    } else {
+      bootApp();
+    }
   </script>
 </body>
 </html>
