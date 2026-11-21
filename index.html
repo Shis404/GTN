@@ -152,6 +152,15 @@
       -webkit-tap-highlight-color: transparent;
     }
 
+    button, input, select, summary {
+      touch-action: manipulation;
+    }
+
+    .secret-masked {
+      -webkit-text-security: disc;
+      text-security: disc;
+    }
+
     html, body {
       margin: 0;
       padding: 0;
@@ -392,6 +401,29 @@
       animation: shakeHorizontal 0.36s ease-in-out;
     }
 
+    @keyframes floatReactionUp {
+      0% {
+        opacity: 0;
+        transform: translateY(18px) scale(0.6);
+      }
+      15% {
+        opacity: 1;
+        transform: translateY(0px) scale(1.1);
+      }
+      80% {
+        opacity: 1;
+        transform: translateY(-130px) scale(1);
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(-175px) scale(0.85);
+      }
+    }
+
+    .floating-reaction {
+      animation: floatReactionUp 2.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
     ::-webkit-scrollbar {
       width: 6px;
       height: 6px;
@@ -419,13 +451,16 @@
   <!-- Fullscreen Confetti Canvas -->
   <canvas id="confetti-canvas" class="fixed inset-0 pointer-events-none z-50"></canvas>
 
+  <!-- Floating Live Emoji Reactions Layer -->
+  <div id="floating-reactions-layer" class="fixed inset-0 pointer-events-none z-40 overflow-hidden"></div>
+
   <!-- Toast Notification Container -->
   <div id="toast-container" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 w-11/12 max-w-md pointer-events-none"></div>
 
   <!-- =====================================================================
        TOP NAVIGATION HEADER (BRAND, CONNECTION STATUS, AUDIO, THEME PILLS, USER ID)
        ===================================================================== -->
-  <header class="relative z-30 w-full px-3 sm:px-6 pt-3 pb-1">
+  <header class="relative z-30 w-full px-3 sm:px-6 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1">
     <div class="max-w-5xl mx-auto glass-panel rounded-2xl px-3.5 py-2.5 flex flex-col gap-2.5">
       <!-- Row 1: Brand + Live Cloud Connection Badge + Music/SFX + Active User ID Pill -->
       <div class="flex flex-wrap items-center justify-between gap-2">
@@ -442,7 +477,7 @@
             </div>
           </button>
 
-          <!-- Interactive Cloud Status Pill (Tap to inspect connection mode) -->
+          <!-- Interactive Cloud Status Pill -->
           <div class="relative">
             <button id="btn-network-status" type="button" title="Inspect Cloud Connection"
                     class="px-2.5 py-1 rounded-full bg-black/45 hover:bg-black/65 border border-white/15 text-[11px] font-extrabold tracking-wide flex items-center gap-1.5 shadow-inner transition">
@@ -472,9 +507,8 @@
           </div>
         </div>
 
-        <!-- Right Controls: Music Selector, SFX, Profile Pill -->
+        <!-- Right Controls: Music Selector, SFX, Clickable Profile Pill -->
         <div class="flex items-center flex-wrap gap-1.5 sm:gap-2">
-          <!-- Web Audio API Music Selector -->
           <div class="flex items-center bg-black/35 border border-white/15 rounded-xl px-2 py-1">
             <select id="select-music-track" aria-label="Select Background Music"
                     class="bg-transparent text-xs font-bold text-white pr-1 py-1 focus:outline-none cursor-pointer">
@@ -485,22 +519,19 @@
             </select>
           </div>
 
-          <!-- SFX Toggle -->
           <button id="btn-toggle-sfx" type="button" title="Toggle Sound Effects"
                   class="btn-glass px-2.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1">
             <span id="icon-sfx">🔊</span>
             <span class="hidden sm:inline" id="label-sfx">SFX</span>
           </button>
 
-          <!-- Logged-In User Profile Pill -->
-          <div id="header-profile-pill" class="hidden items-center gap-2 bg-black/40 border border-white/15 rounded-xl pl-2.5 pr-1.5 py-1">
+          <!-- Clickable Logged-In User Profile Pill -->
+          <button id="header-profile-pill" type="button" title="Edit User ID & Avatar"
+                  class="hidden items-center gap-2 bg-black/40 hover:bg-black/65 border border-white/15 hover:border-cyan-400/50 rounded-xl pl-2.5 pr-2 py-1 transition cursor-pointer">
             <span id="header-avatar" class="text-base">🦊</span>
             <span id="header-userid" class="text-xs font-extrabold tracking-tight max-w-[105px] truncate">@cipher_fox</span>
-            <button id="btn-switch-id" type="button"
-                    class="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] font-bold transition">
-              Edit ID
-            </button>
-          </div>
+            <span class="px-1.5 py-0.5 rounded-md bg-white/10 text-[10px] font-bold">Edit</span>
+          </button>
         </div>
       </div>
 
@@ -532,11 +563,10 @@
   <main class="relative z-10 flex-1 w-full max-w-5xl mx-auto px-3 sm:px-6 py-4 flex flex-col justify-center">
 
     <!-- ===================================================================
-         VIEW 1: USER ID LOGIN & AVATAR PROFILE SETUP
+         VIEW 1: USER ID LOGIN & 16-AVATAR PROFILE SETUP
          =================================================================== -->
     <section id="view-login" class="w-full max-w-md mx-auto animate-pop-in">
       <div class="glass-panel rounded-3xl p-6 sm:p-8 text-center">
-        <!-- Pending Invite Link Banner (Shown when opened via ?room=XXXXX) -->
         <div id="login-invite-banner" class="hidden mb-4 px-3.5 py-2.5 rounded-2xl bg-emerald-500/15 border border-emerald-400/40 text-xs font-bold text-emerald-200">
           🎟️ Invited to Room <span id="login-invite-code" class="font-mono-num font-extrabold underline">-----</span>! Set your User ID to auto-join.
         </div>
@@ -547,11 +577,10 @@
         </div>
         <h2 class="font-display text-2xl sm:text-3xl font-bold tracking-tight">Player ID Login</h2>
         <p class="text-xs sm:text-sm text-slate-300 mt-1.5">
-          Choose your unique User ID so friends recognize you in live multiplayer lobbies &amp; leaderboards!
+          Choose your unique User ID so friends recognize you across multi-round battles &amp; secret turns!
         </p>
 
         <form id="form-login" class="mt-6 text-left space-y-5">
-          <!-- Custom User ID Input -->
           <div>
             <label for="input-userid" class="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
               Your Custom User ID
@@ -559,16 +588,17 @@
             <div class="relative">
               <span class="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono-num font-bold text-base opacity-70">@</span>
               <input id="input-userid" type="text" maxlength="18" required autocomplete="off"
+                     autocapitalize="none" autocorrect="off" spellcheck="false"
                      placeholder="cipher_fox"
                      class="arcade-input w-full rounded-2xl pl-9 pr-4 py-3.5 text-base font-bold tracking-wide" />
             </div>
-            <p class="text-[11px] text-slate-400 mt-1">Examples: @cipher_fox, @nova_77, @pixel_ace</p>
+            <p class="text-[11px] text-slate-400 mt-1">Examples: @cipher_fox, @nova_77, @quantum_fox, @pixel_viper</p>
           </div>
 
-          <!-- Avatar Emoji Picker -->
+          <!-- 16 Avatar Emojis Picker -->
           <div>
             <label class="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
-              Pick Avatar Emoji
+              Pick Avatar Emoji (16 Choices)
             </label>
             <div id="avatar-picker-grid" class="grid grid-cols-4 sm:grid-cols-8 gap-2">
               <!-- Populated by JS -->
@@ -603,7 +633,6 @@
          VIEW 2: MULTIPLAYER & SOLO HUB
          =================================================================== -->
     <section id="view-hub" class="hidden w-full max-w-4xl mx-auto animate-pop-in space-y-5">
-      <!-- Welcome Hero Card -->
       <div class="glass-panel rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div class="flex items-center gap-4 text-center sm:text-left">
           <div id="hub-avatar-badge" class="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shrink-0 border-2 border-white/20 shadow-lg bg-black/35">
@@ -617,7 +646,7 @@
             <h2 class="font-display text-2xl sm:text-3xl font-bold">
               Welcome, <span id="hub-userid-display" style="color: var(--accent-primary);">@cipher_fox</span>!
             </h2>
-            <p class="text-xs sm:text-sm text-slate-300 mt-0.5">Join a friend's 5-character room code, host your own room, or play solo.</p>
+            <p class="text-xs sm:text-sm text-slate-300 mt-0.5">Join a friend's 5-character room code, host a multi-round room, or play solo.</p>
           </div>
         </div>
 
@@ -634,21 +663,22 @@
         </div>
       </div>
 
-      <!-- Primary Multiplayer Cards: JOIN WITH CODE + CREATE ONLINE ROOM + SOLO QUICK PLAY -->
+      <!-- Primary Multiplayer Cards -->
       <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
-        <!-- Prominent JOIN WITH CODE Card (5 cols) -->
+        <!-- Prominent JOIN WITH CODE Card -->
         <div class="md:col-span-5 glass-panel rounded-3xl p-6 flex flex-col justify-between border-2" style="border-color: var(--accent-primary);">
           <div>
             <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/10 text-[11px] font-extrabold uppercase tracking-wider mb-3" style="color: var(--accent-primary);">
               🎟️ Play With Friends
             </div>
             <h3 class="font-display text-2xl font-bold">JOIN WITH CODE</h3>
-            <p class="text-xs text-slate-300 mt-1">Enter your friend's 5-character room code to join their lobby instantly.</p>
+            <p class="text-xs text-slate-300 mt-1">Enter your friend's 5-character room code to join their multi-round lobby.</p>
           </div>
 
           <form id="form-join-code" class="mt-5 space-y-3">
             <div>
-              <input id="input-join-code" type="text" maxlength="5" autocomplete="off" spellcheck="false" placeholder="XXXXX"
+              <input id="input-join-code" type="text" maxlength="5" autocomplete="off"
+                     autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="XXXXX"
                      class="arcade-input w-full rounded-2xl px-3 py-3.5 text-center font-mono-num text-2xl sm:text-3xl font-extrabold uppercase tracking-[0.35em]" />
               <div id="join-code-validation" class="text-[11px] font-bold text-slate-400 text-center mt-1.5">
                 Enter 5 letters/numbers (e.g. K7M9P)
@@ -661,7 +691,7 @@
           </form>
         </div>
 
-        <!-- CREATE ONLINE ROOM Card (4 cols) -->
+        <!-- CREATE ONLINE ROOM Card -->
         <button id="btn-hub-create" type="button"
                 class="md:col-span-4 glass-panel rounded-3xl p-6 text-left flex flex-col justify-between group hover:-translate-y-1 transition-all border border-white/15 hover:border-cyan-400/60">
           <div>
@@ -671,16 +701,16 @@
             </div>
             <h3 class="font-display text-xl font-bold group-hover:text-white">CREATE ONLINE ROOM</h3>
             <p class="text-xs text-slate-300 mt-1.5 leading-relaxed">
-              Generate a 5-character code, set custom number ranges, guess limits, Race or Shared Chaos mode, and invite friends!
+              Open a persistent multi-round lobby! Everyone can take turns setting custom secret numbers &amp; spectating without creating new rooms.
             </p>
           </div>
           <div class="mt-5 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider" style="color: var(--accent-primary);">
-            <span>Configure &amp; Host</span>
+            <span>Open Multi-Round Lobby</span>
             <span>→</span>
           </div>
         </button>
 
-        <!-- SOLO QUICK PLAY Card (3 cols) -->
+        <!-- SOLO QUICK PLAY Card -->
         <button id="btn-hub-solo" type="button"
                 class="md:col-span-3 glass-panel rounded-3xl p-6 text-left flex flex-col justify-between group hover:-translate-y-1 transition-all border border-white/15 hover:border-pink-400/60">
           <div>
@@ -699,7 +729,7 @@
         </button>
       </div>
 
-      <!-- Open Cloud Rooms Discovery Strip (When available) -->
+      <!-- Open Cloud Rooms Discovery Strip -->
       <div class="glass-panel rounded-3xl p-4 sm:p-5">
         <div class="flex items-center justify-between mb-2.5">
           <div class="flex items-center gap-2">
@@ -717,16 +747,16 @@
     </section>
 
     <!-- ===================================================================
-         VIEW 3: ROOM & GAME SETUP (HOST / SOLO CONFIGURATOR)
+         VIEW 3: SOLO QUICK PLAY CONFIGURATOR
          =================================================================== -->
     <section id="view-setup" class="hidden w-full max-w-2xl mx-auto animate-pop-in">
       <div class="glass-panel rounded-3xl p-5 sm:p-8">
         <div class="flex items-center justify-between mb-6">
           <div>
-            <span id="setup-badge" class="inline-block px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-white/10 mb-1.5" style="color: var(--accent-primary);">
-              CREATE ONLINE ROOM
+            <span class="inline-block px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-white/10 mb-1.5" style="color: var(--accent-secondary);">
+              SOLO QUICK PLAY
             </span>
-            <h2 id="setup-title" class="font-display text-2xl sm:text-3xl font-bold">Configure Match Rules</h2>
+            <h2 class="font-display text-2xl sm:text-3xl font-bold">Configure Solo Match</h2>
           </div>
           <button id="btn-setup-back" type="button" class="btn-glass px-3.5 py-2 rounded-xl text-xs font-bold">
             ← Back
@@ -734,7 +764,6 @@
         </div>
 
         <form id="form-setup" class="space-y-5">
-          <!-- 1. Number Range Selector -->
           <div class="glass-subcard rounded-2xl p-4 sm:p-5">
             <div class="flex items-center justify-between mb-3">
               <label class="text-xs font-extrabold uppercase tracking-wider text-slate-200">1. Number Range</label>
@@ -742,14 +771,12 @@
                 1 — 100
               </span>
             </div>
-            <!-- Quick Presets -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3.5">
               <button type="button" data-range="1,50" class="range-preset btn-glass py-2.5 rounded-xl font-mono-num text-xs font-bold">1 – 50</button>
               <button type="button" data-range="1,100" class="range-preset btn-glass pill-active py-2.5 rounded-xl font-mono-num text-xs font-bold">1 – 100</button>
               <button type="button" data-range="1,500" class="range-preset btn-glass py-2.5 rounded-xl font-mono-num text-xs font-bold">1 – 500</button>
               <button type="button" data-range="1,1000" class="range-preset btn-glass py-2.5 rounded-xl font-mono-num text-xs font-bold">1 – 1000</button>
             </div>
-            <!-- Custom Min & Max Inputs -->
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label for="input-min-range" class="block text-[11px] font-semibold text-slate-400 mb-1">Custom Min</label>
@@ -764,7 +791,6 @@
             </div>
           </div>
 
-          <!-- 2. Total Guesses Selector (3, 5, 7, 10, 15, or custom 1–99) -->
           <div class="glass-subcard rounded-2xl p-4 sm:p-5">
             <div class="flex items-center justify-between mb-3">
               <label class="text-xs font-extrabold uppercase tracking-wider text-slate-200">2. Total Guesses Allowed</label>
@@ -776,67 +802,19 @@
               <button type="button" data-guesses="3" class="guess-preset btn-glass py-2.5 rounded-xl font-mono-num text-xs font-bold">3</button>
               <button type="button" data-guesses="5" class="guess-preset btn-glass py-2.5 rounded-xl font-mono-num text-xs font-bold">5</button>
               <button type="button" data-guesses="7" class="guess-preset btn-glass pill-active py-2.5 rounded-xl font-mono-num text-xs font-bold">7</button>
-              <button type="button" data-guesses="10" class="guess-preset btn-glass py-2.5 rounded-xl font-mono-num text-xs font-bold">10</button>
               <button type="button" data-guesses="15" class="guess-preset btn-glass py-2.5 rounded-xl font-mono-num text-xs font-bold">15</button>
+              <button type="button" data-guesses="0" class="guess-preset btn-glass py-2.5 rounded-xl font-mono-num text-xs font-bold">∞</button>
             </div>
             <div class="flex items-center justify-between gap-3">
-              <label for="input-custom-guesses" class="text-[11px] font-semibold text-slate-300">Custom Guesses (1 – 99):</label>
-              <input id="input-custom-guesses" type="number" min="1" max="99" value="7" required
+              <label for="input-custom-guesses" class="text-[11px] font-semibold text-slate-300">Custom (3–25, or 0 = Unlimited):</label>
+              <input id="input-custom-guesses" type="number" min="0" max="99" value="7" required
                      class="arcade-input w-28 rounded-xl px-3 py-2 font-mono-num text-sm font-bold text-center" />
-            </div>
-          </div>
-
-          <!-- 3. Multiplayer Mode & Secret Number Mode (Hidden in Solo Mode) -->
-          <div id="setup-multiplayer-options" class="glass-subcard rounded-2xl p-4 sm:p-5 space-y-4">
-            <div>
-              <label class="block text-xs font-extrabold uppercase tracking-wider text-slate-200 mb-2.5">3. Multiplayer Mode</label>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <button type="button" data-mpmode="race" class="mpmode-btn pill-active p-3.5 rounded-2xl text-left border border-white/15 transition">
-                  <div class="font-bold text-sm flex items-center gap-1.5">🕵️ Race Mode (Private Hints)</div>
-                  <p class="text-[11px] opacity-85 mt-1 leading-snug">
-                    Each player narrows their own private range to find the secret number first!
-                  </p>
-                </button>
-                <button type="button" data-mpmode="chaos" class="mpmode-btn btn-glass p-3.5 rounded-2xl text-left border border-white/15 transition">
-                  <div class="font-bold text-sm flex items-center gap-1.5">🌪️ Shared Chaos (Shared Range)</div>
-                  <p class="text-[11px] opacity-85 mt-1 leading-snug">
-                    Every player's guess narrows the shared range for everyone in one live feed!
-                  </p>
-                </button>
-              </div>
-            </div>
-
-            <!-- 4. Secret Number Mode -->
-            <div class="pt-2 border-t border-white/10">
-              <label class="block text-xs font-extrabold uppercase tracking-wider text-slate-200 mb-2.5">4. Secret Number Mode</label>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <button type="button" data-secretmode="auto" class="secretmode-btn pill-active p-3 rounded-xl text-left border border-white/15 text-xs font-bold">
-                  🎲 Auto-Random (Everyone Plays)
-                </button>
-                <button type="button" data-secretmode="host" class="secretmode-btn btn-glass p-3 rounded-xl text-left border border-white/15 text-xs font-bold">
-                  🤫 Host Picks Secret (You Spectate)
-                </button>
-              </div>
-
-              <!-- Custom Secret Input when Host Picks Secret is chosen -->
-              <div id="custom-secret-wrapper" class="hidden mt-3 bg-black/35 p-3.5 rounded-xl border border-white/10">
-                <label for="input-host-secret" class="block text-[11px] font-bold text-amber-300 mb-1.5">
-                  Enter Secret Number (Must be within your Min &amp; Max range):
-                </label>
-                <div class="flex items-center gap-2">
-                  <input id="input-host-secret" type="password" inputmode="numeric" placeholder="Secret number..."
-                         class="arcade-input flex-1 rounded-xl px-3.5 py-2.5 font-mono-num text-base font-bold" />
-                  <button id="btn-toggle-secret-vis" type="button" class="btn-glass px-3 py-2.5 rounded-xl text-xs font-bold">
-                    👁️ Show
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
 
           <button type="submit" id="btn-setup-launch"
                   class="btn-primary w-full py-4 rounded-2xl text-base uppercase tracking-wider flex items-center justify-center gap-2">
-            <span id="btn-setup-launch-text">CREATE ONLINE ROOM</span>
+            <span>START SOLO MATCH</span>
             <span>✨</span>
           </button>
         </form>
@@ -844,73 +822,291 @@
     </section>
 
     <!-- ===================================================================
-         VIEW 4: MULTIPLAYER ROOM LOBBY (5 LARGE GLOWING CODE TILES)
+         VIEW 4: MULTI-ROUND ONLINE LOBBY (ROTATION + HOST TRANSFER + SETTINGS)
          =================================================================== -->
-    <section id="view-lobby" class="hidden w-full max-w-2xl mx-auto animate-pop-in">
-      <div class="glass-panel rounded-3xl p-5 sm:p-8 text-center">
-        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-xs font-bold mb-2">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-          <span>MULTIPLAYER LOBBY</span>
+    <section id="view-lobby" class="hidden w-full max-w-4xl mx-auto animate-pop-in space-y-4">
+      <!-- Top Room Code & Invite Card -->
+      <div class="glass-panel rounded-3xl p-5 sm:p-6 text-center">
+        <div class="flex flex-wrap items-center justify-center gap-2 mb-2">
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-xs font-extrabold">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            <span id="lobby-round-badge" style="color: var(--accent-primary);">ROUND 1 LOBBY</span>
+          </span>
+          <span id="lobby-host-badge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-xs font-extrabold text-amber-200">
+            👑 Admin: @cipher_fox
+          </span>
+          <span id="lobby-master-badge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-xs font-extrabold text-cyan-200">
+            🎯 Secret Master: @cipher_fox
+          </span>
         </div>
 
-        <h2 class="font-display text-xl sm:text-2xl font-bold text-slate-100">Share Room Code With Friends</h2>
-        <p class="text-xs text-slate-300 mt-1">Your room is saved in the cloud—safe to switch to WhatsApp or Telegram to share!</p>
+        <h2 class="font-display text-xl sm:text-2xl font-bold text-slate-100">Room Code &amp; Multi-Round Lobby</h2>
+        <p class="text-xs text-slate-300 mt-0.5">Everyone can take turns setting a custom secret number &amp; spectating in this exact room!</p>
 
         <!-- 5 Large Glowing Room Code Tiles -->
-        <div id="lobby-code-tiles" class="mt-5 flex items-center justify-center gap-2 sm:gap-3">
-          <div class="code-tile w-12 h-14 sm:w-16 sm:h-20 rounded-2xl flex items-center justify-center font-mono-num text-2xl sm:text-4xl font-extrabold">-</div>
-          <div class="code-tile w-12 h-14 sm:w-16 sm:h-20 rounded-2xl flex items-center justify-center font-mono-num text-2xl sm:text-4xl font-extrabold">-</div>
-          <div class="code-tile w-12 h-14 sm:w-16 sm:h-20 rounded-2xl flex items-center justify-center font-mono-num text-2xl sm:text-4xl font-extrabold">-</div>
-          <div class="code-tile w-12 h-14 sm:w-16 sm:h-20 rounded-2xl flex items-center justify-center font-mono-num text-2xl sm:text-4xl font-extrabold">-</div>
-          <div class="code-tile w-12 h-14 sm:w-16 sm:h-20 rounded-2xl flex items-center justify-center font-mono-num text-2xl sm:text-4xl font-extrabold">-</div>
+        <div id="lobby-code-tiles" class="mt-4 flex items-center justify-center gap-2 sm:gap-3">
+          <div class="code-tile w-12 h-14 sm:w-14 sm:h-16 rounded-2xl flex items-center justify-center font-mono-num text-2xl sm:text-3xl font-extrabold">-</div>
+          <div class="code-tile w-12 h-14 sm:w-14 sm:h-16 rounded-2xl flex items-center justify-center font-mono-num text-2xl sm:text-3xl font-extrabold">-</div>
+          <div class="code-tile w-12 h-14 sm:w-14 sm:h-16 rounded-2xl flex items-center justify-center font-mono-num text-2xl sm:text-3xl font-extrabold">-</div>
+          <div class="code-tile w-12 h-14 sm:w-14 sm:h-16 rounded-2xl flex items-center justify-center font-mono-num text-2xl sm:text-3xl font-extrabold">-</div>
+          <div class="code-tile w-12 h-14 sm:w-14 sm:h-16 rounded-2xl flex items-center justify-center font-mono-num text-2xl sm:text-3xl font-extrabold">-</div>
         </div>
 
-        <!-- 1-Tap Copy Code & Share Invite Link Buttons -->
-        <div class="mt-4 flex flex-wrap items-center justify-center gap-2.5">
+        <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
           <button id="btn-copy-code" type="button"
-                  class="btn-primary px-4 py-3 rounded-2xl text-xs uppercase tracking-wider flex items-center gap-1.5">
+                  class="btn-primary px-4 py-2.5 rounded-2xl text-xs uppercase tracking-wider flex items-center gap-1.5">
             <span>📋 Copy Code</span>
           </button>
           <button id="btn-share-invite" type="button"
-                  class="btn-glass px-4 py-3 rounded-2xl text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 border border-white/20">
+                  class="btn-glass px-4 py-2.5 rounded-2xl text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 border border-white/20">
             <span>🔗 Share Invite Link</span>
           </button>
+          <button id="btn-claim-inactive-host" type="button"
+                  class="hidden btn-glass px-3.5 py-2.5 rounded-2xl text-xs font-extrabold uppercase tracking-wider border border-amber-400/50 text-amber-200">
+            👑 Claim Host (Inactive)
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Secret Rotation Queue Strip (Shown in Rotation Mode) -->
+      <div id="lobby-rotation-strip" class="hidden glass-panel rounded-3xl p-4 sm:p-5 border border-cyan-400/35 space-y-3">
+        <!-- Full Rotation Cycle Celebration Banner -->
+        <div id="lobby-cycle-banner" class="hidden rounded-2xl px-4 py-2.5 bg-gradient-to-r from-emerald-500/25 via-cyan-500/25 to-purple-500/25 border border-emerald-400/50 text-xs sm:text-sm font-extrabold text-emerald-200 text-center animate-pop-in">
+          🎉 Full Rotation Complete! Starting Cycle 2...
         </div>
 
-        <!-- Room Rules Summary Badges -->
-        <div id="lobby-rules-pills" class="flex flex-wrap items-center justify-center gap-2 mt-4">
-          <!-- Populated dynamically -->
-        </div>
-
-        <!-- Live Player Roster -->
-        <div class="mt-6 text-left">
-          <div class="flex items-center justify-between mb-2.5">
-            <span class="text-xs font-extrabold uppercase tracking-wider text-slate-300">
-              Live Player Roster (<span id="lobby-player-count">1</span>)
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-extrabold uppercase tracking-wider" style="color: var(--accent-primary);">🔄 Secret Master Rotation Queue</span>
+            <span id="lobby-cycle-progress" class="px-2.5 py-0.5 rounded-full bg-black/45 border border-white/15 font-mono-num text-[11px] font-extrabold text-amber-300">
+              Cycle 1 • Turn 1 of 1
             </span>
-            <button id="btn-lobby-add-bot" type="button"
-                    class="hidden btn-glass px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5">
-              <span>🤖</span>
-              <span>+ Add Bot</span>
-            </button>
           </div>
-          <div id="lobby-players-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <!-- Populated dynamically -->
-          </div>
+          <button id="btn-lobby-skip-turn" type="button"
+                  class="hidden btn-glass px-3 py-1.5 rounded-xl text-[11px] font-extrabold uppercase tracking-wider border border-amber-400/40 text-amber-200">
+            ⏭️ Skip Turn
+          </button>
         </div>
 
-        <!-- Host vs Guest Lobby Footer Actions -->
-        <div class="mt-7 flex flex-col sm:flex-row items-center justify-center gap-3">
-          <button id="btn-lobby-leave" type="button" class="btn-glass w-full sm:w-auto px-5 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-wider">
-            Leave Room
+        <div id="lobby-rotation-list" class="flex items-center gap-2 overflow-x-auto pb-1">
+          <!-- Populated dynamically with ✅ Done, 🎯 Setting Secret Now, ⏳ Up Next, 🤖 Bot -->
+        </div>
+      </div>
+
+      <!-- YOUR TURN: Secret Master Custom Secret Card (Shown to current secretMasterUid, Host or Guest!) -->
+      <div id="lobby-secret-master-card" class="hidden glass-panel rounded-3xl p-5 sm:p-6 border-2 animate-pop-in" style="border-color: var(--accent-primary); box-shadow: var(--glow-primary);">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div>
+            <span class="inline-block px-2.5 py-0.5 rounded-full bg-white/10 text-[10px] font-extrabold uppercase tracking-wider mb-1" style="color: var(--accent-primary);">
+              🤫 SECRET MASTER SPOTLIGHT
+            </span>
+            <h3 class="font-display text-lg sm:text-xl font-bold text-white">🎯 YOUR TURN: Set the Secret Number &amp; Spectate!</h3>
+            <p id="lobby-secret-range-hint" class="text-xs text-slate-300 mt-0.5">
+              Pick a secret number between 1 and 100. Friends will guess while you spectate live!
+            </p>
+          </div>
+          <span id="lobby-my-secret-status-pill" class="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-amber-500/20 border border-amber-400/40 text-amber-200">
+            ✍️ Not Locked In Yet
+          </span>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+          <div class="relative flex-1 flex flex-wrap sm:flex-nowrap items-center gap-2">
+            <input id="lobby-custom-secret-input" type="text" inputmode="numeric" pattern="[0-9-]*"
+                   autocomplete="off" placeholder="Enter secret number..."
+                   class="arcade-input secret-masked w-full sm:flex-1 rounded-2xl px-4 py-3 font-mono-num text-lg font-extrabold" />
+            <div class="flex items-center gap-2 w-full sm:w-auto">
+              <button id="btn-lobby-secret-toggle" type="button" class="btn-glass flex-1 sm:flex-none px-3.5 py-3 rounded-2xl text-xs font-extrabold shrink-0">
+                👁️ Show
+              </button>
+              <button id="btn-lobby-secret-random" type="button" title="Pick a random secret inside range" class="btn-glass flex-1 sm:flex-none px-3.5 py-3 rounded-2xl text-xs font-extrabold shrink-0">
+                🎲 Randomize
+              </button>
+            </div>
+          </div>
+          <button id="btn-lobby-lock-secret" type="button" class="btn-primary px-5 py-3.5 rounded-2xl text-xs sm:text-sm uppercase tracking-wider shrink-0">
+            🔒 Lock In Secret &amp; Ready
           </button>
-          <button id="btn-lobby-start" type="button"
-                  class="btn-primary w-full sm:flex-1 py-4 rounded-2xl text-sm sm:text-base uppercase tracking-wider hidden">
-            🚀 START MATCH
-          </button>
-          <div id="lobby-guest-wait" class="w-full sm:flex-1 py-3.5 px-4 rounded-2xl bg-white/5 border border-white/10 text-xs font-bold text-slate-300 flex items-center justify-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-amber-400 animate-bounce"></span>
-            <span>Waiting for Host to start the match...</span>
+        </div>
+      </div>
+
+      <!-- Waiting Banner When Another Member is Setting the Secret -->
+      <div id="lobby-waiting-secret-banner" class="hidden glass-panel rounded-3xl p-4 sm:p-5 border border-amber-400/35 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <span id="lobby-wait-master-avatar" class="w-11 h-11 rounded-2xl bg-black/40 border border-amber-400/40 flex items-center justify-center text-2xl shrink-0">
+            🎯
+          </span>
+          <div>
+            <div id="lobby-wait-master-title" class="font-display text-sm sm:text-base font-bold text-white">
+              ⏳ Waiting for @nova_77 to lock in their secret number...
+            </div>
+            <div id="lobby-wait-master-sub" class="text-xs text-slate-300">
+              They will spectate this round while everyone else guesses!
+            </div>
+          </div>
+        </div>
+        <span id="lobby-wait-master-pill" class="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-amber-500/20 border border-amber-400/40 text-amber-200">
+          ✍️ Choosing secret...
+        </span>
+      </div>
+
+      <!-- 2-Column Lobby Body: Left = Player Roster & Role Transfer, Right = Round Settings -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <!-- Left Column (5 cols): Live Player Roster + Let Set Secret / Make Host + Bots -->
+        <div class="lg:col-span-5 glass-panel rounded-3xl p-5 flex flex-col justify-between space-y-4">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-extrabold uppercase tracking-wider text-slate-200">
+                Players (<span id="lobby-player-count">1</span>)
+              </span>
+              <button id="btn-lobby-add-bot" type="button"
+                      class="hidden btn-glass px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5">
+                <span>🤖</span>
+                <span>+ Add Bot</span>
+              </button>
+            </div>
+            <p id="lobby-transfer-hint" class="hidden text-[11px] text-cyan-200/95 bg-cyan-500/10 border border-cyan-400/25 rounded-xl px-3 py-2 mb-3">
+              💡 Tap <strong>🎯 Let Set Secret</strong> to pick who sets the secret this round, or <strong>👑 Make Host</strong> to pass room admin!
+            </p>
+            <div id="lobby-players-grid" class="space-y-2.5 max-h-[340px] overflow-y-auto pr-1">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- Past Rounds Accordion inside Lobby -->
+          <details id="lobby-history-accordion" class="hidden glass-subcard rounded-2xl p-3 border border-white/10">
+            <summary class="text-xs font-extrabold uppercase tracking-wider text-slate-200 cursor-pointer select-none flex items-center justify-between">
+              <span>📜 Past Rounds Log (<span id="lobby-history-count">0</span>)</span>
+              <span class="text-[10px] text-slate-400">Tap to view</span>
+            </summary>
+            <div id="lobby-history-list" class="mt-2.5 space-y-1.5 max-h-40 overflow-y-auto pr-1"></div>
+          </details>
+        </div>
+
+        <!-- Right Column (7 cols): Round Settings (Editable by Room Admin, Live Preview for Guests) -->
+        <div class="lg:col-span-7 glass-panel rounded-3xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-white/10 pb-2.5">
+            <div>
+              <h3 class="font-display text-lg font-bold" id="lobby-settings-heading">Round 1 Settings</h3>
+              <p class="text-[11px] text-slate-300" id="lobby-settings-subheading">Configure range, guesses, mode &amp; secret rotation</p>
+            </div>
+            <span id="lobby-role-badge" class="px-2.5 py-1 rounded-xl text-[11px] font-extrabold bg-white/10" style="color: var(--accent-primary);">
+              👑 You are Admin
+            </span>
+          </div>
+
+          <!-- HOST EDITABLE CONTROLS -->
+          <div id="lobby-host-controls" class="space-y-4">
+            <!-- 1. Number Range -->
+            <div class="glass-subcard rounded-2xl p-3.5">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-300">1. Number Range</span>
+                <span id="lobby-range-preview" class="font-mono-num text-xs font-bold px-2 py-0.5 rounded bg-black/45" style="color: var(--accent-primary);">1 — 100</span>
+              </div>
+              <div class="grid grid-cols-4 gap-1.5 mb-2.5">
+                <button type="button" data-lrange="1,50" class="lobby-range-preset btn-glass py-2 rounded-xl font-mono-num text-[11px] font-bold">1–50</button>
+                <button type="button" data-lrange="1,100" class="lobby-range-preset btn-glass pill-active py-2 rounded-xl font-mono-num text-[11px] font-bold">1–100</button>
+                <button type="button" data-lrange="1,500" class="lobby-range-preset btn-glass py-2 rounded-xl font-mono-num text-[11px] font-bold">1–500</button>
+                <button type="button" data-lrange="1,1000" class="lobby-range-preset btn-glass py-2 rounded-xl font-mono-num text-[11px] font-bold">1–1000</button>
+              </div>
+              <div class="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label for="lobby-min-input" class="block text-[10px] font-bold text-slate-400 mb-1">Min Range</label>
+                  <input id="lobby-min-input" type="number" value="1" class="arcade-input w-full rounded-xl px-3 py-2 font-mono-num text-sm font-bold" />
+                </div>
+                <div>
+                  <label for="lobby-max-input" class="block text-[10px] font-bold text-slate-400 mb-1">Max Range</label>
+                  <input id="lobby-max-input" type="number" value="100" class="arcade-input w-full rounded-xl px-3 py-2 font-mono-num text-sm font-bold" />
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. Max Guesses Per Player (3 to 25, or Unlimited) -->
+            <div class="glass-subcard rounded-2xl p-3.5">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-300">2. Max Guesses Per Player</span>
+                <span id="lobby-guesses-preview" class="font-mono-num text-xs font-bold px-2 py-0.5 rounded bg-black/45" style="color: var(--accent-secondary);">7 Guesses</span>
+              </div>
+              <div class="grid grid-cols-6 gap-1.5">
+                <button type="button" data-lguesses="3" class="lobby-guess-preset btn-glass py-2 rounded-xl font-mono-num text-xs font-bold">3</button>
+                <button type="button" data-lguesses="5" class="lobby-guess-preset btn-glass py-2 rounded-xl font-mono-num text-xs font-bold">5</button>
+                <button type="button" data-lguesses="7" class="lobby-guess-preset btn-glass pill-active py-2 rounded-xl font-mono-num text-xs font-bold">7</button>
+                <button type="button" data-lguesses="12" class="lobby-guess-preset btn-glass py-2 rounded-xl font-mono-num text-xs font-bold">12</button>
+                <button type="button" data-lguesses="25" class="lobby-guess-preset btn-glass py-2 rounded-xl font-mono-num text-xs font-bold">25</button>
+                <button type="button" data-lguesses="0" class="lobby-guess-preset btn-glass py-2 rounded-xl font-mono-num text-[11px] font-bold">∞ Unlim</button>
+              </div>
+            </div>
+
+            <!-- 3. Game Mode -->
+            <div class="glass-subcard rounded-2xl p-3.5">
+              <span class="block text-[11px] font-extrabold uppercase tracking-wider text-slate-300 mb-2">3. Game Mode</span>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button type="button" data-lmpmode="race" class="lobby-mpmode-btn pill-active p-3 rounded-xl text-left border border-white/15 transition">
+                  <div class="font-bold text-xs">🕵️ Private Hints (Race)</div>
+                  <p class="text-[10px] opacity-85 mt-0.5">Each player sees only their own higher/lower hints.</p>
+                </button>
+                <button type="button" data-lmpmode="chaos" class="lobby-mpmode-btn btn-glass p-3 rounded-xl text-left border border-white/15 transition">
+                  <div class="font-bold text-xs">🌪️ Shared Chaos</div>
+                  <p class="text-[10px] opacity-85 mt-0.5">Everyone shares one live guess feed &amp; narrowed bounds.</p>
+                </button>
+              </div>
+            </div>
+
+            <!-- 4. Secret Master Mode (Rotation vs Auto-Random vs Single Custom) -->
+            <div class="glass-subcard rounded-2xl p-3.5">
+              <span class="block text-[11px] font-extrabold uppercase tracking-wider text-slate-300 mb-2">4. Secret Source &amp; Turns</span>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <button type="button" data-lsecretmode="rotation" class="lobby-secretmode-btn pill-active p-3 rounded-xl text-left border border-white/15 transition">
+                  <div class="font-bold text-xs">🔄 Everyone Takes Turns</div>
+                  <p class="text-[10px] opacity-85 mt-0.5">Auto-rotates Secret Master through every member.</p>
+                </button>
+                <button type="button" data-lsecretmode="auto" class="lobby-secretmode-btn btn-glass p-3 rounded-xl text-left border border-white/15 transition">
+                  <div class="font-bold text-xs">🎲 Auto-Random (All Play)</div>
+                  <p class="text-[10px] opacity-85 mt-0.5">Random secret so even the Host guesses.</p>
+                </button>
+                <button type="button" data-lsecretmode="custom" class="lobby-secretmode-btn btn-glass p-3 rounded-xl text-left border border-white/15 transition">
+                  <div class="font-bold text-xs">👑 Single Secret Master</div>
+                  <p class="text-[10px] opacity-85 mt-0.5">Host or chosen friend sets custom secret.</p>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- GUEST READ-ONLY LIVE PREVIEW OF HOST SETTINGS -->
+          <div id="lobby-guest-settings-preview" class="hidden space-y-3">
+            <div class="glass-subcard rounded-2xl p-4 space-y-2.5">
+              <div class="flex justify-between text-xs">
+                <span class="text-slate-400 font-semibold">Number Range:</span>
+                <span id="guest-preview-range" class="font-mono-num font-extrabold" style="color: var(--accent-primary);">1 — 100</span>
+              </div>
+              <div class="flex justify-between text-xs">
+                <span class="text-slate-400 font-semibold">Max Guesses:</span>
+                <span id="guest-preview-guesses" class="font-mono-num font-extrabold text-white">7 Guesses</span>
+              </div>
+              <div class="flex justify-between text-xs">
+                <span class="text-slate-400 font-semibold">Game Mode:</span>
+                <span id="guest-preview-mode" class="font-extrabold text-white">🕵️ Private Hints (Race)</span>
+              </div>
+              <div class="flex justify-between text-xs">
+                <span class="text-slate-400 font-semibold">Secret Source:</span>
+                <span id="guest-preview-secret" class="font-extrabold text-amber-300">🔄 Everyone Takes Turns</span>
+              </div>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-white/5 border border-white/10 text-xs font-bold text-slate-300 flex items-center justify-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-amber-400 animate-bounce"></span>
+              <span id="lobby-guest-wait-text">Waiting for Host to start Round 1...</span>
+            </div>
+          </div>
+
+          <!-- Lobby Footer Actions -->
+          <div class="pt-2 flex flex-col sm:flex-row items-center gap-2.5">
+            <button id="btn-lobby-leave" type="button" class="btn-glass w-full sm:w-auto px-5 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-wider">
+              Leave Room
+            </button>
+            <button id="btn-lobby-start" type="button"
+                    class="btn-primary w-full sm:flex-1 py-4 rounded-2xl text-sm sm:text-base uppercase tracking-wider">
+              🚀 START ROUND 1
+            </button>
           </div>
         </div>
       </div>
@@ -923,6 +1119,9 @@
       <!-- Top Arena Status Bar -->
       <div class="glass-panel rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2 flex-wrap">
+          <span id="arena-round-pill" class="px-2.5 py-1 rounded-xl text-xs font-extrabold bg-amber-500/20 text-amber-200 border border-amber-400/30">
+            ROUND 1
+          </span>
           <span id="arena-mode-pill" class="px-3 py-1 rounded-xl text-xs font-extrabold bg-white/10" style="color: var(--accent-primary);">
             SOLO ARENA
           </span>
@@ -932,104 +1131,122 @@
         </div>
 
         <div class="flex items-center gap-2.5">
-          <!-- Remaining Guesses Badge -->
           <div id="arena-guesses-badge" class="px-3.5 py-1.5 rounded-xl font-mono-num text-xs sm:text-sm font-extrabold bg-black/45 border border-white/15 flex items-center gap-1.5">
             <span>🎯</span>
             <span id="arena-guesses-text">7 / 7 Left</span>
           </div>
           <button id="btn-arena-exit" type="button" class="btn-glass px-3 py-1.5 rounded-xl text-xs font-bold">
-            Exit
+            Leave
           </button>
         </div>
       </div>
 
-      <!-- Multiplayer Opponent Live Progress Bars (Shown only in Online Mode) -->
-      <div id="arena-players-strip" class="hidden glass-panel rounded-2xl p-3">
-        <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-2 px-1">Live Opponent Progress</div>
+      <!-- Multiplayer Opponent Live Progress Bars + Emoji Reaction Bar -->
+      <div id="arena-players-strip" class="hidden glass-panel rounded-2xl p-3 space-y-2.5">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+          <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 px-1">Live Players &amp; Round Wins</span>
+          <!-- Live Emoji Reaction Bar -->
+          <div class="flex items-center gap-1 bg-black/35 border border-white/10 rounded-xl px-2 py-1">
+            <span class="text-[10px] font-bold text-slate-400 mr-1 hidden sm:inline">React:</span>
+            <button type="button" data-reaction="🔥" class="reaction-btn hover:scale-125 active:scale-95 transition text-base px-1">🔥</button>
+            <button type="button" data-reaction="😱" class="reaction-btn hover:scale-125 active:scale-95 transition text-base px-1">😱</button>
+            <button type="button" data-reaction="😂" class="reaction-btn hover:scale-125 active:scale-95 transition text-base px-1">😂</button>
+            <button type="button" data-reaction="🧠" class="reaction-btn hover:scale-125 active:scale-95 transition text-base px-1">🧠</button>
+            <button type="button" data-reaction="👀" class="reaction-btn hover:scale-125 active:scale-95 transition text-base px-1">👀</button>
+            <button type="button" data-reaction="🎉" class="reaction-btn hover:scale-125 active:scale-95 transition text-base px-1">🎉</button>
+          </div>
+        </div>
         <div id="arena-players-list" class="flex items-center gap-2.5 overflow-x-auto pb-1">
           <!-- Populated dynamically -->
         </div>
       </div>
 
-      <!-- Main 2-Column Arena Layout (Left: Dynamic Range Bar + Keypad, Right: Guess History) -->
+      <!-- Main 2-Column Arena Layout -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
         <!-- Left Column (7 cols): Dynamic Range Bar + Proximity Radar + Controls -->
         <div class="lg:col-span-7 glass-panel rounded-3xl p-5 sm:p-6 flex flex-col justify-between space-y-5">
           <!-- Live Dynamic Visual Range Bar -->
           <div>
             <div class="flex items-center justify-between text-xs font-bold mb-2">
-              <span class="uppercase tracking-wider text-slate-300">Current Range: <span id="range-bounds-label" class="font-mono-num font-extrabold" style="color: var(--accent-primary);">1 — 100</span></span>
+              <span class="uppercase tracking-wider text-slate-300">Target Zone: <span id="range-bounds-label" class="font-mono-num font-extrabold" style="color: var(--accent-primary);">1 — 100</span></span>
               <span id="range-possibilities-label" class="font-mono-num text-[11px] font-bold text-slate-300 bg-black/40 px-2 py-0.5 rounded-lg">
                 100 numbers left
               </span>
             </div>
-
-            <!-- Visual Horizontal Meter -->
-            <div class="relative w-full h-7 rounded-2xl bg-black/50 border border-white/15 overflow-hidden p-1">
-              <div id="dynamic-range-fill"
-                   class="h-full rounded-xl transition-all duration-500 ease-out flex items-center justify-center text-[10px] font-mono-num font-extrabold shadow-lg"
-                   style="width: 100%; margin-left: 0%; background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary)); color: var(--accent-text-on-primary);">
-                100% ZONE
-              </div>
-            </div>
-            <div class="flex justify-between font-mono-num text-[11px] font-bold text-slate-400 mt-1.5 px-1">
-              <span id="range-abs-min">Min: 1</span>
-              <span id="range-abs-max">Max: 100</span>
-            </div>
-          </div>
-
-          <!-- Instant Proximity Radar & Directional Feedback Banner -->
-          <div id="proximity-banner" class="glass-subcard rounded-2xl p-4 text-center border border-white/10">
-            <div id="proximity-emoji" class="text-3xl mb-1">🔮</div>
-            <div id="proximity-title" class="font-display text-lg sm:text-xl font-bold">Make Your First Guess!</div>
-            <p id="proximity-subtitle" class="text-xs text-slate-300 mt-0.5">
-              Enter a number inside the active range below to scan proximity.
-            </p>
-          </div>
-
-          <!-- Mobile-Friendly Number Input & Quick-Adjust Controls -->
-          <div id="arena-controls-wrapper" class="space-y-3">
+          <!-- Number Input & Quick-Adjust + Touch Numpad Controls -->
+          <div id="arena-controls-wrapper" class="space-y-2.5">
             <div class="flex items-center gap-2">
               <input id="input-guess-number" type="number" inputmode="numeric" placeholder="?"
-                     class="arcade-input w-full rounded-2xl py-4 px-4 text-center font-mono-num text-3xl sm:text-4xl font-extrabold tracking-wider" />
+                     class="arcade-input flex-1 rounded-2xl py-3.5 px-4 text-center font-mono-num text-3xl sm:text-4xl font-extrabold tracking-wider" />
+              <button id="btn-toggle-numpad" type="button" title="Toggle On-Screen Touch Numpad"
+                      class="btn-glass px-3 py-3.5 rounded-2xl text-xs font-extrabold shrink-0 flex flex-col items-center justify-center gap-0.5">
+                <span class="text-base leading-none">🔢</span>
+                <span id="label-toggle-numpad" class="text-[10px] uppercase tracking-wider">Hide Pad</span>
+              </button>
             </div>
 
-            <!-- Quick-Adjust Buttons (-10, -1, +1, +10) -->
-            <div class="grid grid-cols-4 gap-2">
-              <button type="button" data-delta="-10" class="quick-adjust-btn btn-glass py-2.5 rounded-xl font-mono-num text-sm font-extrabold">-10</button>
-              <button type="button" data-delta="-1" class="quick-adjust-btn btn-glass py-2.5 rounded-xl font-mono-num text-sm font-extrabold">-1</button>
-              <button type="button" data-delta="1" class="quick-adjust-btn btn-glass py-2.5 rounded-xl font-mono-num text-sm font-extrabold">+1</button>
-              <button type="button" data-delta="10" class="quick-adjust-btn btn-glass py-2.5 rounded-xl font-mono-num text-sm font-extrabold">+10</button>
+            <div class="grid grid-cols-6 gap-1.5 sm:gap-2">
+              <button type="button" data-delta="-10" class="quick-adjust-btn btn-glass py-2.5 rounded-xl font-mono-num text-xs sm:text-sm font-extrabold">-10</button>
+              <button type="button" data-delta="-5" class="quick-adjust-btn btn-glass py-2.5 rounded-xl font-mono-num text-xs sm:text-sm font-extrabold">-5</button>
+              <button type="button" data-delta="-1" class="quick-adjust-btn btn-glass py-2.5 rounded-xl font-mono-num text-xs sm:text-sm font-extrabold">-1</button>
+              <button type="button" data-delta="1" class="quick-adjust-btn btn-glass py-2.5 rounded-xl font-mono-num text-xs sm:text-sm font-extrabold">+1</button>
+              <button type="button" data-delta="5" class="quick-adjust-btn btn-glass py-2.5 rounded-xl font-mono-num text-xs sm:text-sm font-extrabold">+5</button>
+              <button type="button" data-delta="10" class="quick-adjust-btn btn-glass py-2.5 rounded-xl font-mono-num text-xs sm:text-sm font-extrabold">+10</button>
             </div>
 
-            <!-- Bold Submit Guess Button -->
+            <!-- Built-In Touch Numpad (Prevents mobile keyboard from covering the arena) -->
+            <div id="mobile-touch-numpad" class="grid grid-cols-4 gap-1.5 pt-0.5">
+              <button type="button" data-numpad="1" class="numpad-btn btn-glass py-2.5 rounded-xl font-mono-num text-base font-extrabold">1</button>
+              <button type="button" data-numpad="2" class="numpad-btn btn-glass py-2.5 rounded-xl font-mono-num text-base font-extrabold">2</button>
+              <button type="button" data-numpad="3" class="numpad-btn btn-glass py-2.5 rounded-xl font-mono-num text-base font-extrabold">3</button>
+              <button type="button" data-numpad="back" class="numpad-btn btn-glass py-2.5 rounded-xl font-mono-num text-sm font-extrabold text-amber-300">⌫</button>
+
+              <button type="button" data-numpad="4" class="numpad-btn btn-glass py-2.5 rounded-xl font-mono-num text-base font-extrabold">4</button>
+              <button type="button" data-numpad="5" class="numpad-btn btn-glass py-2.5 rounded-xl font-mono-num text-base font-extrabold">5</button>
+              <button type="button" data-numpad="6" class="numpad-btn btn-glass py-2.5 rounded-xl font-mono-num text-base font-extrabold">6</button>
+              <button type="button" data-numpad="clear" class="numpad-btn btn-glass py-2.5 rounded-xl text-xs font-extrabold uppercase text-rose-300">CLR</button>
+
+              <button type="button" data-numpad="7" class="numpad-btn btn-glass py-2.5 rounded-xl font-mono-num text-base font-extrabold">7</button>
+              <button type="button" data-numpad="8" class="numpad-btn btn-glass py-2.5 rounded-xl font-mono-num text-base font-extrabold">8</button>
+              <button type="button" data-numpad="9" class="numpad-btn btn-glass py-2.5 rounded-xl font-mono-num text-base font-extrabold">9</button>
+              <button type="button" data-numpad="0" class="numpad-btn btn-glass py-2.5 rounded-xl font-mono-num text-base font-extrabold">0</button>
+            </div>
+
             <button id="btn-submit-guess" type="button"
-                    class="btn-primary w-full py-4 rounded-2xl text-lg uppercase tracking-widest flex items-center justify-center gap-2">
+                    class="btn-primary w-full py-3.5 sm:py-4 rounded-2xl text-base sm:text-lg uppercase tracking-widest flex items-center justify-center gap-2">
               <span>GUESS</span>
               <span>🎯</span>
             </button>
           </div>
 
-          <!-- Spectator / Out-of-Guesses Notice -->
-          <div id="arena-spectator-box" class="hidden glass-subcard rounded-2xl p-5 text-center border border-amber-400/30">
-            <div class="text-2xl mb-1" id="spectator-icon">👁️</div>
-            <div class="font-display text-lg font-bold text-amber-300" id="spectator-title">Host Spectator View</div>
-            <p class="text-xs text-slate-300 mt-1" id="spectator-desc">
-              You picked the secret number! Watch your friends battle it out in real time.
+          <!-- Secret Master Spectator / Out-of-Guesses Notice -->
+          <div id="arena-spectator-box" class="hidden glass-subcard rounded-2xl p-5 text-center border border-amber-400/35 space-y-2.5">
+            <div class="text-3xl" id="spectator-icon">🤫</div>
+            <div class="font-display text-lg font-bold text-amber-300" id="spectator-title">Secret Master Spectator View</div>
+            <p class="text-xs text-slate-300" id="spectator-desc">
+              You set the secret number! Watch your friends battle to crack it in real time.
             </p>
+            <div id="spectator-secret-pill" class="hidden inline-flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-black/50 border border-amber-400/40">
+              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Your Secret:</span>
+              <span id="spectator-secret-value" class="font-mono-num text-lg font-extrabold text-amber-300">••••</span>
+              <button id="btn-spectator-peek" type="button" class="btn-glass px-2.5 py-1 rounded-xl text-[11px] font-extrabold">
+                👁️ Peek
+              </button>
+            </div>
           </div>
         </div>
 
-        <!-- Right Column (5 cols): Guess History Chips -->
-        <div class="lg:col-span-5 glass-panel rounded-3xl p-5 flex flex-col max-h-[470px]">
-          <div class="flex items-center justify-between mb-3 pb-2 border-b border-white/10">
-            <h3 id="history-feed-title" class="font-display text-base font-bold">Your Guess History</h3>
-            <span id="history-count-badge" class="font-mono-num text-xs font-bold px-2.5 py-0.5 rounded-lg bg-white/10">0</span>
+        <!-- Right Column (5 cols): Live Guess History & Proximity Feed -->
+        <div class="lg:col-span-5 glass-panel rounded-3xl p-5 flex flex-col justify-between space-y-3">
+          <div class="flex items-center justify-between border-b border-white/10 pb-2.5">
+            <h3 id="history-feed-title" class="font-display text-base sm:text-lg font-bold">Your Guess History</h3>
+            <span id="history-feed-count" class="font-mono-num text-xs font-extrabold px-2.5 py-0.5 rounded-lg bg-black/45 text-slate-300">
+              0 Guesses
+            </span>
           </div>
-
-          <div id="guess-history-list" class="flex-1 overflow-y-auto space-y-2 pr-1">
-            <div class="text-center py-10 text-xs text-slate-400">
-              No guesses yet. Take your shot!
+          <div id="guess-history-list" class="space-y-2 max-h-[360px] overflow-y-auto pr-1 flex-1">
+            <div class="text-xs text-slate-400 text-center py-10 px-4 rounded-2xl bg-black/25">
+              No guesses yet — submit a number to start scanning!
             </div>
           </div>
         </div>
@@ -1037,44 +1254,91 @@
     </section>
 
     <!-- ===================================================================
-         VIEW 6: VICTORY / GAME OVER PODIUM & REMATCH
+         VIEW 6: MULTI-ROUND RESULTS, STANDINGS & NEXT-ROUND HOST CONTROLS
          =================================================================== -->
-    <section id="view-results" class="hidden w-full max-w-2xl mx-auto animate-pop-in">
+    <section id="view-results" class="hidden w-full max-w-3xl mx-auto animate-pop-in space-y-4">
       <div class="glass-panel rounded-3xl p-6 sm:p-8 text-center">
-        <div id="results-hero-emoji" class="text-5xl mb-2">🏆</div>
-        <h2 id="results-headline" class="font-display text-2xl sm:text-4xl font-bold">Number Cracked!</h2>
-        <p id="results-subheadline" class="text-xs sm:text-sm text-slate-300 mt-1">
-          @cipher_fox found the secret number!
-        </p>
+        <div id="results-trophy-icon" class="text-5xl mb-2">🏆</div>
+        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-xs font-extrabold mb-2">
+          <span id="results-round-pill" style="color: var(--accent-primary);">ROUND 1 COMPLETE</span>
+        </div>
+        <h2 id="results-title" class="font-display text-2xl sm:text-4xl font-bold">@cipher_fox Wins!</h2>
+        <p id="results-subtitle" class="text-xs sm:text-sm text-slate-300 mt-1">Cracked the secret code in 4 guesses!</p>
 
-        <!-- Secret Number Reveal Card -->
-        <div class="mt-5 inline-block glass-subcard rounded-2xl px-7 py-4 border-2" style="border-color: var(--accent-primary);">
-          <div class="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">The Secret Number Was</div>
-          <div id="results-secret-number" class="font-mono-num text-4xl sm:text-5xl font-extrabold mt-1" style="color: var(--accent-primary);">
-            42
+        <!-- Revealed Secret Number Card -->
+        <div class="mt-5 inline-flex flex-col items-center px-6 py-3.5 rounded-2xl bg-black/45 border border-white/15">
+          <span class="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">The Secret Number Was</span>
+          <span id="results-secret-number" class="font-mono-num text-3xl sm:text-4xl font-extrabold mt-0.5" style="color: var(--accent-primary);">42</span>
+          <span id="results-secret-setter" class="hidden text-[11px] font-bold text-amber-300 mt-1">Set by @cipher_fox</span>
+        </div>
+
+        <!-- Up Next Secret Rotation Preview Strip (Shown in Rotation Mode) -->
+        <div id="results-rotation-strip" class="hidden mt-5 text-left glass-subcard rounded-2xl p-3.5 border border-cyan-400/30">
+          <div class="text-[11px] font-extrabold uppercase tracking-wider mb-2" style="color: var(--accent-primary);">
+            🔄 Next Round Secret Master Queue
+          </div>
+          <div id="results-rotation-list" class="flex items-center gap-2 overflow-x-auto pb-1">
+            <!-- Populated dynamically -->
           </div>
         </div>
 
-        <!-- Winner Podium & Standings -->
+        <!-- Round Standings & Total Wins Leaderboard -->
         <div class="mt-6 text-left">
-          <div class="text-xs font-extrabold uppercase tracking-wider text-slate-300 mb-2.5">Leaderboard &amp; Standings</div>
+          <div class="text-xs font-extrabold uppercase tracking-wider text-slate-300 mb-2.5">
+            Round Standings &amp; Room Leaderboard
+          </div>
           <div id="results-standings-list" class="space-y-2">
             <!-- Populated dynamically -->
           </div>
         </div>
 
-        <!-- Rematch / Return Actions -->
-        <div class="mt-7 flex flex-col sm:flex-row items-center gap-3">
-          <button id="btn-results-hub" type="button" class="btn-glass w-full sm:w-auto px-5 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-wider">
-            Back to Hub
-          </button>
+        <!-- Past Rounds Log Accordion on Results View -->
+        <details id="results-history-accordion" class="hidden mt-4 text-left glass-subcard rounded-2xl p-3 border border-white/10">
+          <summary class="text-xs font-extrabold uppercase tracking-wider text-slate-200 cursor-pointer select-none flex items-center justify-between">
+            <span>📜 Past Rounds Log (<span id="results-history-count">0</span>)</span>
+            <span class="text-[10px] text-slate-400">Tap to view</span>
+          </summary>
+          <div id="results-history-list" class="mt-2.5 space-y-1.5 max-h-40 overflow-y-auto pr-1"></div>
+        </details>
+
+        <!-- Online Multi-Round Host Action Buttons (Keep Same Room!) -->
+        <div id="results-online-host-actions" class="hidden mt-6 space-y-2.5">
           <button id="btn-results-next-round" type="button"
-                  class="btn-primary w-full sm:flex-1 py-4 rounded-2xl text-sm sm:text-base uppercase tracking-wider">
-            🔄 Play Again (New Round)
+                  class="btn-primary w-full py-4 rounded-2xl text-sm sm:text-base uppercase tracking-wider">
+            🔄 Next Round (Same Room)
           </button>
-          <div id="results-guest-wait" class="hidden w-full sm:flex-1 py-3.5 px-4 rounded-2xl bg-white/5 border border-white/10 text-xs font-bold text-slate-300">
-            Waiting for Host to launch next round...
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <button id="btn-results-winner-host" type="button"
+                    class="hidden btn-glass py-3 px-4 rounded-2xl text-xs font-extrabold uppercase tracking-wider border border-amber-400/40 text-amber-200">
+              🏆 Make Winner Host &amp; Next Round
+            </button>
+            <button id="btn-results-pass-host" type="button"
+                    class="hidden btn-glass py-3 px-4 rounded-2xl text-xs font-extrabold uppercase tracking-wider border border-cyan-400/40 text-cyan-200">
+              👑 Pass Host to Next Player
+            </button>
           </div>
+        </div>
+
+        <!-- Online Guest Waiting Banner -->
+        <div id="results-online-guest-wait" class="hidden mt-6 p-4 rounded-2xl bg-white/5 border border-white/15 text-xs font-bold text-slate-200 flex items-center justify-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-amber-400 animate-bounce"></span>
+          <span id="results-guest-wait-text">Waiting for Admin to start the next round in this room...</span>
+        </div>
+
+        <!-- Solo Replay Actions -->
+        <div id="results-solo-actions" class="hidden mt-6 flex flex-col sm:flex-row items-center gap-2.5">
+          <button id="btn-results-solo-again" type="button"
+                  class="btn-primary w-full sm:flex-1 py-4 rounded-2xl text-sm uppercase tracking-wider">
+            🔄 Play Again (Solo)
+          </button>
+        </div>
+
+        <!-- Leave Room / Back to Hub -->
+        <div class="mt-3">
+          <button id="btn-results-hub" type="button"
+                  class="btn-glass w-full py-3 rounded-2xl text-xs font-bold uppercase tracking-wider">
+            🏠 Leave Room &amp; Back to Hub
+          </button>
         </div>
       </div>
     </section>
@@ -1084,7 +1348,7 @@
   <!-- =====================================================================
        MANDATORY PERSISTENT FOOTER ON EVERY VIEW
        ===================================================================== -->
-  <footer class="relative z-20 w-full px-3 sm:px-6 py-3 mt-auto">
+  <footer class="relative z-20 w-full px-3 sm:px-6 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] mt-auto">
     <div class="max-w-5xl mx-auto glass-panel rounded-2xl px-4 py-2.5 flex items-center justify-center gap-2.5 text-center">
       <span class="w-2 h-2 rounded-full" style="background: var(--accent-primary); box-shadow: var(--glow-primary);"></span>
       <span class="font-display text-xs sm:text-sm font-bold tracking-[0.2em] uppercase"
@@ -1114,24 +1378,7 @@
   </div>
 
   <!-- =====================================================================
-       CUSTOM MODAL FOR HOST REMATCH SECRET INPUT (ZERO PROMPT/ALERT)
-       ===================================================================== -->
-  <div id="modal-host-secret" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="glass-panel rounded-3xl p-6 max-w-sm w-full text-center animate-pop-in">
-      <div class="text-3xl mb-2">🤫</div>
-      <h3 class="font-display text-xl font-bold">Set Next Secret Number</h3>
-      <p id="modal-secret-range-hint" class="text-xs text-slate-300 mt-1">Enter a secret number between 1 and 100.</p>
-      <input id="modal-secret-input" type="number" inputmode="numeric"
-             class="arcade-input w-full rounded-2xl py-3 px-4 mt-4 text-center font-mono-num text-2xl font-extrabold" />
-      <div class="flex gap-2.5 mt-5">
-        <button id="btn-modal-secret-cancel" type="button" class="btn-glass flex-1 py-3 rounded-xl text-xs font-bold">Cancel</button>
-        <button id="btn-modal-secret-confirm" type="button" class="btn-primary flex-1 py-3 rounded-xl text-xs uppercase tracking-wider">Start Round</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- =====================================================================
-       APPLICATION MODULE SCRIPT (FIREBASE v11 PRIMARY + MQTT WSS FALLBACK)
+       APPLICATION MODULE SCRIPT (FIREBASE v11 PRIMARY + MQTT STATE/EVENTS)
        ===================================================================== -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -1144,11 +1391,11 @@
       updateDoc,
       onSnapshot,
       collection,
-      arrayUnion
+      deleteField
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     /* ===================================================================
-       1. SAFE STORAGE HELPER
+       1. SAFE STORAGE & CLONE HELPERS
        =================================================================== */
     const memoryStorage = {};
     const safeStorage = {
@@ -1168,6 +1415,18 @@
       }
     };
 
+    function cloneObj(obj) {
+      try {
+        return JSON.parse(JSON.stringify(obj));
+      } catch (_) {
+        return Object.assign({}, obj);
+      }
+    }
+
+    function makeEventId() {
+      return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+    }
+
     /* ===================================================================
        2. PROCEDURAL WEB AUDIO API MUSIC & SOUND EFFECTS ENGINE
        =================================================================== */
@@ -1186,9 +1445,7 @@
         try {
           if (!this.ctx) {
             const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (AudioCtx) {
-              this.ctx = new AudioCtx();
-            }
+            if (AudioCtx) this.ctx = new AudioCtx();
           }
           if (this.ctx && this.ctx.state === 'suspended') {
             this.ctx.resume().catch(() => {});
@@ -1221,13 +1478,9 @@
         if (!this.musicEnabled || this.isPlayingMusic || !this.ctx) return;
         this.isPlayingMusic = true;
 
-        const tempos = {
-          marimba: 195,
-          chiptune: 165,
-          cosmic: 245
-        };
-
+        const tempos = { marimba: 195, chiptune: 165, cosmic: 245 };
         const interval = tempos[this.track] || 195;
+
         this.timerId = setInterval(() => {
           if (!this.musicEnabled || !this.ctx || this.ctx.state !== 'running') return;
           this.playMusicStep(this.stepIndex);
@@ -1271,27 +1524,25 @@
             melody: [523.25, 0, 659.25, 783.99, 659.25, 0, 880.00, 783.99, 659.25, 587.33, 523.25, 0, 587.33, 659.25, 523.25, 0],
             bass:   [130.81, 0, 196.00, 0, 174.61, 0, 196.00, 0, 146.83, 0, 196.00, 0, 130.81, 0, 196.00, 0],
             wave: 'sine',
-            vol: 0.042
+            vol: 0.04
           },
           chiptune: {
             melody: [523.25, 659.25, 783.99, 1046.5, 783.99, 659.25, 587.33, 783.99, 659.25, 880.00, 1046.5, 880.00, 783.99, 659.25, 587.33, 493.88],
             bass:   [130.81, 130.81, 164.81, 164.81, 174.61, 174.61, 196.00, 196.00, 146.83, 146.83, 174.61, 174.61, 196.00, 196.00, 123.47, 123.47],
             wave: 'square',
-            vol: 0.02
+            vol: 0.019
           },
           cosmic: {
             melody: [440.00, 0, 523.25, 0, 659.25, 0, 587.33, 0, 392.00, 0, 493.88, 0, 587.33, 0, 523.25, 0],
             bass:   [110.00, 0, 110.00, 0, 130.81, 0, 130.81, 0, 98.00, 0, 98.00, 0, 130.81, 0, 146.83, 0],
             wave: 'triangle',
-            vol: 0.048
+            vol: 0.045
           }
         };
 
         const p = patterns[this.track] || patterns.marimba;
-        const mNote = p.melody[step];
-        const bNote = p.bass[step];
-        if (mNote) this.playTone(mNote, 0.18, p.wave, p.vol, 0);
-        if (bNote) this.playTone(bNote, 0.22, 'triangle', p.vol * 0.9, 0);
+        if (p.melody[step]) this.playTone(p.melody[step], 0.18, p.wave, p.vol, 0);
+        if (p.bass[step]) this.playTone(p.bass[step], 0.22, 'triangle', p.vol * 0.9, 0);
       }
 
       playClick() {
@@ -1312,6 +1563,12 @@
         this.playTone(480, 0.08, 'sine', 0.11, 0, 720);
       }
 
+      playReactionPop() {
+        if (!this.sfxEnabled) return;
+        this.unlock();
+        this.playTone(740, 0.06, 'sine', 0.08, 0, 1080);
+      }
+
       playTooLow() {
         if (!this.sfxEnabled) return;
         this.unlock();
@@ -1330,6 +1587,15 @@
         this.unlock();
         this.playTone(880, 0.09, 'sine', 0.12, 0);
         this.playTone(1174.66, 0.16, 'sine', 0.13, 0.08);
+      }
+
+      playHostCrownFanfare() {
+        if (!this.sfxEnabled) return;
+        this.unlock();
+        this.playTone(587.33, 0.11, 'triangle', 0.13, 0);
+        this.playTone(739.99, 0.11, 'triangle', 0.13, 0.09);
+        this.playTone(880.00, 0.12, 'triangle', 0.14, 0.18);
+        this.playTone(1174.66, 0.28, 'triangle', 0.15, 0.27);
       }
 
       playLastGuessTick() {
@@ -1363,24 +1629,23 @@
     /* ===================================================================
        3. DUAL CLOUD MULTIPLAYER ENGINE
           - Primary: Firebase v11 Firestore (artifacts/{appId}/public/data/gtn_rooms/{roomCode})
-          - Fallback: MQTT over WSS (retain: true) + BroadcastChannel('gtn_arena_local')
+          - Standalone Fallback: MQTT over WSS (wss://broker.emqx.io:8884/mqtt ->
+            wss://broker.hivemq.com:8884/mqtt) + BroadcastChannel('gtn_local_sync')
+            with separated /state (retain: true) & /events (retain: false),
+            deduplicated event IDs, and 2.5s host heartbeat.
        =================================================================== */
-    const MQTT_PREFIX = 'gtn_arena_v4';
+    const MQTT_PREFIX = 'gtn_snehashis_arena_v4';
     const MQTT_BROKERS = [
-      { name: 'EMQX WSS', url: 'wss://broker.emqx.io:8084/mqtt' },
+      { name: 'EMQX WSS', url: 'wss://broker.emqx.io:8884/mqtt' },
       { name: 'HiveMQ WSS', url: 'wss://broker.hivemq.com:8884/mqtt' }
     ];
 
-    function mqttRoomTopic(code) {
-      return `${MQTT_PREFIX}/rooms/${String(code || '').trim().toUpperCase()}`;
+    function mqttStateTopic(code) {
+      return `${MQTT_PREFIX}/rooms/${String(code || '').trim().toUpperCase()}/state`;
     }
 
-    function structuredCloneSafe(obj) {
-      try {
-        return JSON.parse(JSON.stringify(obj));
-      } catch (_) {
-        return Object.assign({}, obj);
-      }
+    function mqttEventsTopic(code) {
+      return `${MQTT_PREFIX}/rooms/${String(code || '').trim().toUpperCase()}/events`;
     }
 
     class UnifiedCloudEngine {
@@ -1392,20 +1657,25 @@
         this.auth = null;
         this.user = null;
 
-        // MQTT Fallback state
         this.mqttClient = null;
         this.mqttBrokerIdx = 0;
-        this.mqttSubs = new Map(); // topic -> Set<fn>
-        this.mqttRetainedCache = new Map(); // topic -> latest room obj
+        this.stateSubs = new Map();
+        this.eventSubs = new Map();
+        this.retainedCache = new Map();
+        this.seenEventIds = new Set();
         this.bc = null;
 
         try {
           if (typeof BroadcastChannel !== 'undefined') {
-            this.bc = new BroadcastChannel('gtn_arena_local');
+            this.bc = new BroadcastChannel('gtn_local_sync');
             this.bc.onmessage = (ev) => {
-              if (ev?.data?.topic && ev?.data?.room) {
-                this.mqttRetainedCache.set(ev.data.topic, ev.data.room);
-                this.dispatchMqttTopic(ev.data.topic, ev.data.room);
+              const msg = ev?.data;
+              if (!msg || !msg.code) return;
+              if (msg.channel === 'state' && msg.room) {
+                this.retainedCache.set(msg.code, msg.room);
+                this.emitState(msg.code, msg.room);
+              } else if (msg.channel === 'events' && msg.event) {
+                this.handleIncomingEvent(msg.code, msg.event);
               }
             };
           }
@@ -1426,19 +1696,13 @@
         if (diagUid) diagUid.textContent = state.uid || '---';
 
         if (statusType === 'online') {
-          if (authEl) {
-            authEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span><span>${engineDesc} Connected</span>`;
-          }
+          if (authEl) authEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span><span>${engineDesc} Connected</span>`;
           if (hubBadge) hubBadge.textContent = 'ONLINE ARENA READY';
         } else if (statusType === 'connecting') {
-          if (authEl) {
-            authEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span><span>Connecting to cloud servers...</span>`;
-          }
+          if (authEl) authEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span><span>Connecting to cloud servers...</span>`;
           if (hubBadge) hubBadge.textContent = 'CONNECTING CLOUD...';
         } else {
-          if (authEl) {
-            authEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-400 animate-ping"></span><span>Reconnecting cloud sync...</span>`;
-          }
+          if (authEl) authEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-400 animate-ping"></span><span>Reconnecting cloud sync...</span>`;
           if (hubBadge) hubBadge.textContent = 'RECONNECTING...';
         }
       }
@@ -1457,7 +1721,6 @@
             this.auth = getAuth(fbApp);
             this.db = getFirestore(fbApp);
 
-            // RULE 3: Authenticate FIRST and await before any Firestore operation
             if (typeof window.__initial_auth_token !== 'undefined' && window.__initial_auth_token) {
               const cred = await signInWithCustomToken(this.auth, window.__initial_auth_token);
               this.user = cred.user;
@@ -1472,15 +1735,14 @@
 
             this.mode = 'firebase';
             this.ready = true;
-            this.updateConnectionUI('online', '🟢 Online Ready', 'Firebase Cloud Firestore', 'Connected (Persistent)');
+            this.updateConnectionUI('online', '🟢 Online', 'Firebase Cloud Firestore', 'Connected (Persistent)');
             this.startFirebaseLobbyDiscovery();
             return;
           } catch (err) {
-            console.warn('Firebase init failed, switching to MQTT WSS cloud fallback:', err);
+            console.warn('Firebase init failed, switching to MQTT WSS fallback:', err);
           }
         }
 
-        // Standalone / External Hosting Fallback: MQTT over WSS with retain: true
         this.mode = 'mqtt';
         await this.initMqttFallback();
       }
@@ -1497,9 +1759,7 @@
 
       connectMqttBroker(mqttLib) {
         if (this.mqttClient) {
-          try {
-            this.mqttClient.end(true);
-          } catch (_) {}
+          try { this.mqttClient.end(true); } catch (_) {}
           this.mqttClient = null;
         }
 
@@ -1510,7 +1770,7 @@
         const failoverTimer = setTimeout(() => {
           if (!settled) {
             this.mqttBrokerIdx = (this.mqttBrokerIdx + 1) % MQTT_BROKERS.length;
-            this.updateConnectionUI('reconnecting', '🟡 Switching Relay...', broker.name, 'Failing over...');
+            this.updateConnectionUI('reconnecting', '🔴 Reconnecting...', broker.name, 'Switching Broker...');
             this.connectMqttBroker(mqttLib);
           }
         }, 5500);
@@ -1529,20 +1789,21 @@
             settled = true;
             clearTimeout(failoverTimer);
             this.ready = true;
-            this.updateConnectionUI('online', '🟢 Online Ready', `Cloud MQTT (${broker.name})`, 'Connected (Retained Sync)');
-            this.mqttSubs.forEach((_, topic) => {
+            this.updateConnectionUI('online', '🟢 Online', `MQTT (${broker.name})`, 'Connected (State + Events)');
+            this.stateSubs.forEach((_, code) => {
               try {
-                client.subscribe(topic, { qos: 1 });
+                client.subscribe(mqttStateTopic(code), { qos: 1 });
+                client.subscribe(mqttEventsTopic(code), { qos: 1 });
               } catch (_) {}
             });
           });
 
           client.on('reconnect', () => {
-            this.updateConnectionUI('reconnecting', '🟡 Reconnecting...', `Cloud MQTT (${broker.name})`, 'Reconnecting...');
+            this.updateConnectionUI('reconnecting', '🔴 Reconnecting...', `MQTT (${broker.name})`, 'Reconnecting...');
           });
 
           client.on('offline', () => {
-            this.updateConnectionUI('reconnecting', '🔴 Offline', `Cloud MQTT (${broker.name})`, 'Offline');
+            this.updateConnectionUI('reconnecting', '🔴 Reconnecting...', `MQTT (${broker.name})`, 'Offline');
           });
 
           client.on('error', () => {
@@ -1556,11 +1817,12 @@
           client.on('message', (topic, buf) => {
             try {
               const parsed = JSON.parse(buf.toString());
-              if (parsed && parsed.code) {
-                const prev = this.mqttRetainedCache.get(topic);
-                const merged = this.mergeMqttRoomStates(prev, parsed);
-                this.mqttRetainedCache.set(topic, merged);
-                this.dispatchMqttTopic(topic, merged);
+              if (!parsed) return;
+              if (topic.endsWith('/state') && parsed.code) {
+                this.retainedCache.set(parsed.code, parsed);
+                this.emitState(parsed.code, parsed);
+              } else if (topic.endsWith('/events') && parsed.code && parsed.eventId) {
+                this.handleIncomingEvent(parsed.code, parsed);
               }
             } catch (_) {}
           });
@@ -1571,80 +1833,72 @@
         }
       }
 
-      mergeMqttRoomStates(localRoom, incomingRoom) {
-        if (!localRoom) return incomingRoom;
-        if (!incomingRoom) return localRoom;
-
-        // If round number advanced, take the newer round cleanly
-        if ((incomingRoom.roundNumber || 1) > (localRoom.roundNumber || 1)) {
-          return incomingRoom;
+      handleIncomingEvent(code, eventObj) {
+        if (!eventObj || !eventObj.eventId) return;
+        if (this.seenEventIds.has(eventObj.eventId)) return;
+        this.seenEventIds.add(eventObj.eventId);
+        if (this.seenEventIds.size > 500) {
+          const first = this.seenEventIds.values().next().value;
+          this.seenEventIds.delete(first);
         }
-        if ((localRoom.roundNumber || 1) > (incomingRoom.roundNumber || 1)) {
-          return localRoom;
-        }
-
-        // Union players map so simultaneous joins never overwrite each other
-        const mergedPlayers = { ...(localRoom.players || {}) };
-        Object.entries(incomingRoom.players || {}).forEach(([pid, incPlayer]) => {
-          const locPlayer = mergedPlayers[pid];
-          if (!locPlayer || (incPlayer.guessCount || 0) >= (locPlayer.guessCount || 0)) {
-            mergedPlayers[pid] = incPlayer;
-          }
-        });
-
-        const base = (incomingRoom.updatedAt || 0) >= (localRoom.updatedAt || 0) ? incomingRoom : localRoom;
-        return {
-          ...base,
-          players: mergedPlayers,
-          sharedLow: Math.max(localRoom.sharedLow ?? base.min, incomingRoom.sharedLow ?? base.min),
-          sharedHigh: Math.min(localRoom.sharedHigh ?? base.max, incomingRoom.sharedHigh ?? base.max),
-          status: (localRoom.status === 'finished' || incomingRoom.status === 'finished')
-            ? 'finished'
-            : (localRoom.status === 'playing' || incomingRoom.status === 'playing')
-              ? 'playing'
-              : 'waiting'
-        };
-      }
-
-      dispatchMqttTopic(topic, roomObj) {
-        const handlers = this.mqttSubs.get(topic);
+        const handlers = this.eventSubs.get(code);
         if (!handlers) return;
         handlers.forEach(fn => {
-          try {
-            fn(structuredCloneSafe(roomObj));
-          } catch (_) {}
+          try { fn(cloneObj(eventObj)); } catch (_) {}
         });
       }
 
-      publishMqttRetainedRoom(roomObj) {
-        const topic = mqttRoomTopic(roomObj.code);
-        this.mqttRetainedCache.set(topic, structuredCloneSafe(roomObj));
+      emitState(code, roomObj) {
+        const handlers = this.stateSubs.get(code);
+        if (!handlers) return;
+        handlers.forEach(fn => {
+          try { fn(cloneObj(roomObj)); } catch (_) {}
+        });
+      }
 
+      publishMqttState(roomObj) {
+        if (!roomObj || !roomObj.code) return;
+        const code = roomObj.code;
+        this.retainedCache.set(code, cloneObj(roomObj));
         if (this.bc) {
-          try {
-            this.bc.postMessage({ topic, room: roomObj });
-          } catch (_) {}
+          try { this.bc.postMessage({ channel: 'state', code, room: roomObj }); } catch (_) {}
         }
         if (this.mqttClient && this.mqttClient.connected) {
           try {
-            this.mqttClient.publish(topic, JSON.stringify(roomObj), { qos: 1, retain: true });
+            this.mqttClient.publish(mqttStateTopic(code), JSON.stringify(roomObj), { qos: 1, retain: true });
           } catch (_) {}
         }
       }
 
+      publishMqttEvent(code, eventPayload) {
+        const fullEvent = {
+          ...eventPayload,
+          code,
+          eventId: eventPayload.eventId || makeEventId(),
+          timestamp: Date.now()
+        };
+        if (this.bc) {
+          try { this.bc.postMessage({ channel: 'events', code, event: fullEvent }); } catch (_) {}
+        }
+        if (this.mqttClient && this.mqttClient.connected) {
+          try {
+            this.mqttClient.publish(mqttEventsTopic(code), JSON.stringify(fullEvent), { qos: 1, retain: false });
+          } catch (_) {}
+        }
+        this.handleIncomingEvent(code, fullEvent);
+      }
+
       getRoomDocRef(roomCode) {
-        // RULE 1: Strict path artifacts/{appId}/public/data/gtn_rooms/{roomCode}
         return doc(this.db, 'artifacts', this.appId, 'public', 'data', 'gtn_rooms', roomCode);
       }
 
       startFirebaseLobbyDiscovery() {
         if (this.mode !== 'firebase' || !this.db || !this.auth?.currentUser) return;
         try {
-          // RULE 2: Simple collection query without orderBy/where; filter/sort in JS memory
           const colRef = collection(this.db, 'artifacts', this.appId, 'public', 'data', 'gtn_rooms');
           onSnapshot(colRef, (snapshot) => {
             const waitingRooms = [];
-            const cutoff = Date.now() - 1000 * 60 * 45; // Last 45 minutes
+            const cutoff = Date.now() - 1000 * 60 * 45;
             snapshot.forEach(docSnap => {
               const d = docSnap.data();
               if (d && d.status === 'waiting' && (d.updatedAt || d.createdAt || 0) > cutoff) {
@@ -1654,26 +1908,26 @@
             waitingRooms.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
             renderDiscoveredLobbies(waitingRooms);
           }, (err) => {
-            console.warn('Lobby discovery snapshot error:', err);
+            console.warn('Lobby discovery error:', err);
           });
         } catch (_) {}
       }
 
-      async createRoom(roomCode, roomData, onUpdate, onError) {
+      async createRoom(roomCode, roomData, onStateUpdate, onEvent, onError) {
         if (this.mode === 'firebase') {
           if (!this.auth?.currentUser) throw new Error('Cloud authentication not ready yet.');
           const roomRef = this.getRoomDocRef(roomCode);
           await setDoc(roomRef, roomData);
-          return this.subscribeRoom(roomCode, onUpdate, onError);
+          return this.subscribeRoom(roomCode, onStateUpdate, onEvent, onError);
         } else {
-          const unsub = this.subscribeRoom(roomCode, onUpdate, onError);
-          this.publishMqttRetainedRoom(roomData);
-          onUpdate(structuredCloneSafe(roomData));
+          const unsub = this.subscribeRoom(roomCode, onStateUpdate, onEvent, onError);
+          this.publishMqttState(roomData);
+          onStateUpdate(cloneObj(roomData));
           return unsub;
         }
       }
 
-      async joinRoom(roomCode, playerObj, onUpdate, onError) {
+      async joinRoom(roomCode, playerObj, onStateUpdate, onEvent, onError) {
         const cleanCode = String(roomCode || '').trim().toUpperCase();
 
         if (this.mode === 'firebase') {
@@ -1688,6 +1942,11 @@
 
           const existingData = snap.data();
           const existingPlayer = existingData.players?.[playerObj.id];
+          const prevOrder = Array.isArray(existingData.rotationOrder) ? existingData.rotationOrder : [];
+          const nextRotationOrder = (!playerObj.isBot && !prevOrder.includes(playerObj.id))
+            ? [...prevOrder, playerObj.id]
+            : prevOrder;
+
           const finalPlayer = existingPlayer ? {
             ...existingPlayer,
             userId: playerObj.userId,
@@ -1695,22 +1954,21 @@
             color: playerObj.color
           } : {
             ...playerObj,
+            roundWins: 0,
             isSpectator: existingData.status === 'playing',
             privateLow: existingData.min,
             privateHigh: existingData.max
           };
 
-          // Atomic dot-notation update so multiple friends joining simultaneously never overwrite each other
           await updateDoc(roomRef, {
             [`players.${playerObj.id}`]: finalPlayer,
+            rotationOrder: nextRotationOrder,
             updatedAt: Date.now()
           });
 
-          const unsub = this.subscribeRoom(cleanCode, onUpdate, onError);
+          const unsub = this.subscribeRoom(cleanCode, onStateUpdate, onEvent, onError);
           return { ok: true, unsub };
         } else {
-          // MQTT WSS Retained Cloud Lookup
-          const topic = mqttRoomTopic(cleanCode);
           return new Promise((resolve) => {
             let resolved = false;
             const timeout = setTimeout(() => {
@@ -1726,47 +1984,63 @@
                 resolved = true;
                 clearTimeout(timeout);
 
-                const existingPlayer = roomData.players?.[playerObj.id];
-                if (!existingPlayer) {
-                  roomData.players = roomData.players || {};
-                  roomData.players[playerObj.id] = {
+                this.publishMqttEvent(cleanCode, {
+                  type: 'JOIN_REQ',
+                  player: {
                     ...playerObj,
+                    roundWins: roomData.players?.[playerObj.id]?.roundWins || 0,
                     isSpectator: roomData.status === 'playing',
                     privateLow: roomData.min,
                     privateHigh: roomData.max
+                  }
+                });
+
+                const optimistic = cloneObj(roomData);
+                if (!optimistic.players?.[playerObj.id]) {
+                  optimistic.players = optimistic.players || {};
+                  optimistic.players[playerObj.id] = {
+                    ...playerObj,
+                    roundWins: 0,
+                    isSpectator: optimistic.status === 'playing',
+                    privateLow: optimistic.min,
+                    privateHigh: optimistic.max
                   };
-                  roomData.updatedAt = Date.now();
-                  this.publishMqttRetainedRoom(roomData);
+                  setTimeout(() => {
+                    const latest = this.retainedCache.get(cleanCode);
+                    if (latest && !latest.players?.[playerObj.id]) {
+                      latest.players = latest.players || {};
+                      latest.players[playerObj.id] = optimistic.players[playerObj.id];
+                      latest.updatedAt = Date.now();
+                      this.publishMqttState(latest);
+                    }
+                  }, 1200);
                 }
 
-                onUpdate(structuredCloneSafe(roomData));
+                onStateUpdate(optimistic);
                 resolve({ ok: true, unsub });
               } else if (resolved) {
-                onUpdate(roomData);
+                onStateUpdate(roomData);
               }
-            }, onError);
+            }, onEvent, onError);
 
-            const cached = this.mqttRetainedCache.get(topic);
+            const cached = this.retainedCache.get(cleanCode);
             if (cached && cached.code === cleanCode) {
-              this.dispatchMqttTopic(topic, cached);
+              this.emitState(cleanCode, cached);
             }
           });
         }
       }
 
-      subscribeRoom(roomCode, onUpdate, onError) {
+      subscribeRoom(roomCode, onStateUpdate, onEvent, onError) {
         const cleanCode = String(roomCode || '').trim().toUpperCase();
 
         if (this.mode === 'firebase') {
           if (!this.auth?.currentUser) return () => {};
           const roomRef = this.getRoomDocRef(cleanCode);
-          // Mandatory error callback on onSnapshot
           return onSnapshot(
             roomRef,
             (snap) => {
-              if (snap.exists()) {
-                onUpdate(snap.data());
-              }
+              if (snap.exists()) onStateUpdate(snap.data());
             },
             (err) => {
               console.error('Firestore room snapshot error:', err);
@@ -1774,63 +2048,66 @@
             }
           );
         } else {
-          const topic = mqttRoomTopic(cleanCode);
-          if (!this.mqttSubs.has(topic)) {
-            this.mqttSubs.set(topic, new Set());
-          }
-          this.mqttSubs.get(topic).add(onUpdate);
+          if (!this.stateSubs.has(cleanCode)) this.stateSubs.set(cleanCode, new Set());
+          if (!this.eventSubs.has(cleanCode)) this.eventSubs.set(cleanCode, new Set());
+          this.stateSubs.get(cleanCode).add(onStateUpdate);
+          if (onEvent) this.eventSubs.get(cleanCode).add(onEvent);
+
           if (this.mqttClient && this.mqttClient.connected) {
             try {
-              this.mqttClient.subscribe(topic, { qos: 1 });
+              this.mqttClient.subscribe(mqttStateTopic(cleanCode), { qos: 1 });
+              this.mqttClient.subscribe(mqttEventsTopic(cleanCode), { qos: 1 });
             } catch (_) {}
           }
+
           return () => {
-            const set = this.mqttSubs.get(topic);
-            if (set) {
-              set.delete(onUpdate);
-              if (set.size === 0) {
-                this.mqttSubs.delete(topic);
-                if (this.mqttClient && this.mqttClient.connected) {
-                  try {
-                    this.mqttClient.unsubscribe(topic);
-                  } catch (_) {}
-                }
-              }
+            const sSet = this.stateSubs.get(cleanCode);
+            if (sSet) {
+              sSet.delete(onStateUpdate);
+              if (sSet.size === 0) this.stateSubs.delete(cleanCode);
+            }
+            const eSet = this.eventSubs.get(cleanCode);
+            if (eSet && onEvent) {
+              eSet.delete(onEvent);
+              if (eSet.size === 0) this.eventSubs.delete(cleanCode);
+            }
+            if (!this.stateSubs.has(cleanCode) && this.mqttClient && this.mqttClient.connected) {
+              try {
+                this.mqttClient.unsubscribe(mqttStateTopic(cleanCode));
+                this.mqttClient.unsubscribe(mqttEventsTopic(cleanCode));
+              } catch (_) {}
             }
           };
         }
       }
 
-      async updateRoom(roomCode, firestorePatch, fullMergedRoom) {
+      async updateAuthoritativeState(roomCode, firestorePatch, fullMergedRoom) {
         const cleanCode = String(roomCode || '').trim().toUpperCase();
         if (this.mode === 'firebase') {
           if (!this.auth?.currentUser) return;
-          const roomRef = this.getRoomDocRef(cleanCode);
-          await updateDoc(roomRef, firestorePatch);
+          await updateDoc(this.getRoomDocRef(cleanCode), firestorePatch);
         } else if (fullMergedRoom) {
-          this.publishMqttRetainedRoom(fullMergedRoom);
-          this.dispatchMqttTopic(mqttRoomTopic(cleanCode), fullMergedRoom);
+          this.publishMqttState(fullMergedRoom);
+          this.emitState(cleanCode, fullMergedRoom);
         }
       }
 
       async forceSyncRoom(roomCode) {
         const cleanCode = String(roomCode || '').trim().toUpperCase();
         if (!cleanCode) return null;
-
         if (this.mode === 'firebase') {
           if (!this.auth?.currentUser) return null;
           const snap = await getDoc(this.getRoomDocRef(cleanCode));
           return snap.exists() ? snap.data() : null;
         } else {
-          const topic = mqttRoomTopic(cleanCode);
           if (this.mqttClient && this.mqttClient.connected) {
             try {
-              this.mqttClient.unsubscribe(topic, () => {
-                this.mqttClient.subscribe(topic, { qos: 1 });
+              this.mqttClient.unsubscribe(mqttStateTopic(cleanCode), () => {
+                this.mqttClient.subscribe(mqttStateTopic(cleanCode), { qos: 1 });
               });
             } catch (_) {}
           }
-          return this.mqttRetainedCache.get(topic) || null;
+          return this.retainedCache.get(cleanCode) || null;
         }
       }
     }
@@ -1838,9 +2115,9 @@
     const cloud = new UnifiedCloudEngine();
 
     /* ===================================================================
-       4. APPLICATION STATE & CONSTANTS
+       4. APPLICATION STATE & 16 AVATAR EMOJIS
        =================================================================== */
-    const AVATARS = ['🦊', '🚀', '👾', '⚡', '🐉', '🎯', '🔮', '🐼'];
+    const AVATARS = ['🦊', '🚀', '👾', '⚡', '🐉', '🎯', '🔮', '🐼', '🦁', '🦄', '🤖', '👻', '🐙', '🦅', '💎', '🔥'];
     const BADGE_COLORS = [
       { id: 'cyan', hex: '#00f5d4', label: 'Neon Cyan' },
       { id: 'pink', hex: '#ff2a85', label: 'Hot Magenta' },
@@ -1853,16 +2130,16 @@
     const BOT_PROFILES = [
       { userId: '@nova_77', avatar: '👾', color: '#a855f7' },
       { userId: '@quantum_fox', avatar: '🐉', color: '#fbbf24' },
-      { userId: '@pixel_ace', avatar: '⚡', color: '#38bdf8' }
+      { userId: '@pixel_viper', avatar: '⚡', color: '#38bdf8' }
     ];
 
-    const PROFILE_STORAGE_KEY = 'gtn_arena_profile_v1';
+    const PROFILE_STORAGE_KEY = 'gtn_arena_profile_v2';
 
     function generateFallbackUid() {
-      const cached = safeStorage.get('gtn_arena_client_uid');
+      const cached = safeStorage.get('gtn_arena_client_uid_v2');
       if (cached) return cached;
       const fresh = 'plr_' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
-      safeStorage.set('gtn_arena_client_uid', fresh);
+      safeStorage.set('gtn_arena_client_uid_v2', fresh);
       return fresh;
     }
 
@@ -1887,1756 +2164,257 @@
         gamesPlayed: 0
       },
       theme: 'cyber',
-      setupType: 'online', // 'online' | 'solo'
-      setupConfig: {
-        min: 1,
-        max: 100,
-        maxGuesses: 7,
-        mpMode: 'race', // 'race' | 'chaos'
-        secretMode: 'auto' // 'auto' | 'host'
-      },
       activeMode: null, // 'online' | 'solo'
       isRoomHost: false,
       roomCode: null,
       roomState: null,
       roomUnsub: null,
+      heartbeatTimerId: null,
       botTimerId: null,
       soloGame: null,
       localBounds: { low: 1, high: 100 },
-      lastCelebratedRoundKey: null
+      lastCelebratedRoundKey: null,
+      lastKnownHostId: null,
+      lastKnownSecretMasterId: null,
+      spectatorSecretVisible: false,
+      seenReactionIds: new Set(),
+      lastJoinRetryAt: 0,
+      numpadVisible: true
     };
+// ... existing code ... -->
+    // Network Status Diagnostics Popover
+    document.getElementById('btn-network-status').addEventListener('click', (e) => {
+      e.stopPropagation();
+      audio.playClick();
+      document.getElementById('network-popover').classList.toggle('hidden');
+    });
+
+    // Global first-touch audio unlock for iOS Safari & Android Chrome
+    const unlockAudioOnFirstGesture = () => {
+      audio.unlock();
+      window.removeEventListener('touchstart', unlockAudioOnFirstGesture);
+      window.removeEventListener('pointerdown', unlockAudioOnFirstGesture);
+    };
+    window.addEventListener('touchstart', unlockAudioOnFirstGesture, { passive: true });
+    window.addEventListener('pointerdown', unlockAudioOnFirstGesture, { passive: true });
+// ... existing code ... -->
+    /* ===================================================================
+       11. INCOMING ROOM STATE ROUTER & ROTATION QUEUE RENDERER
+       =================================================================== */
+    function handleIncomingRoomState(room) {
+      if (!room || !room.code) return;
+      state.roomState = room;
+      const amHostNow = room.hostId === state.uid;
+
+      // Auto re-request join in MQTT mode if guest isn't registered in room.players yet
+      if (!amHostNow && cloud.mode === 'mqtt' && room.players && !room.players[state.uid]) {
+        const now = Date.now();
+        if (now - state.lastJoinRetryAt > 3000) {
+          state.lastJoinRetryAt = now;
+          cloud.publishMqttEvent(room.code, {
+            type: 'JOIN_REQ',
+            player: {
+              id: state.uid,
+              userId: state.profile.userId,
+              avatar: state.profile.avatar,
+              color: state.profile.color,
+              isHost: false,
+              isBot: false,
+              isSpectator: room.status === 'playing',
+              joinedAt: now,
+              roundWins: 0,
+              guessCount: 0,
+              solved: false,
+              outOfGuesses: false,
+              privateLow: room.min,
+              privateHigh: room.max,
+              guesses: []
+            }
+          });
+        }
+      }
+
+      if (amHostNow && !state.isRoomHost) {
+// ... existing code ... -->
+      } else if (isSecretMaster) {
+        masterCard.classList.remove('hidden');
+        waitBanner.classList.add('hidden');
+        const secretInp = document.getElementById('lobby-custom-secret-input');
+        if (!room.secretReady && room.secretNumber === null && document.activeElement !== secretInp) {
+          secretInp.value = '';
+        }
+        document.getElementById('lobby-secret-range-hint').textContent =
+          `Pick a secret number between ${room.min} and ${room.max}. Friends will guess while you spectate live!`;
+// ... existing code ... -->
+      // Render Player Roster
+      const playersList = Object.values(playersMap).sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
+      document.getElementById('lobby-player-count').textContent = playersList.length;
+
+      // Show Inactive Host Claim button if host hasn't updated room for > 18 seconds
+      const claimHostBtn = document.getElementById('btn-claim-inactive-host');
+      if (!isHost && room.updatedAt && (Date.now() - room.updatedAt > 18000)) {
+        claimHostBtn.classList.remove('hidden');
+      } else {
+        claimHostBtn.classList.add('hidden');
+      }
+
+      const addBotBtn = document.getElementById('btn-lobby-add-bot');
+// ... existing code ... -->
+    // Secret Master Custom Secret Input Controls
+    document.getElementById('btn-lobby-secret-toggle').addEventListener('click', () => {
+      audio.playClick();
+      const inp = document.getElementById('lobby-custom-secret-input');
+      const btn = document.getElementById('btn-lobby-secret-toggle');
+      if (inp.classList.contains('secret-masked')) {
+        inp.classList.remove('secret-masked');
+        btn.textContent = '🙈 Hide';
+      } else {
+        inp.classList.add('secret-masked');
+        btn.textContent = '👁️ Show';
+      }
+    });
+
+    document.getElementById('btn-lobby-secret-random').addEventListener('click', () => {
+      audio.playClick();
+      const room = state.roomState;
+      if (!room) return;
+      const rand = Math.floor(Math.random() * (room.max - room.min + 1)) + room.min;
+      const inp = document.getElementById('lobby-custom-secret-input');
+      inp.value = rand;
+      inp.classList.remove('secret-masked');
+      document.getElementById('btn-lobby-secret-toggle').textContent = '🙈 Hide';
+    });
+
+    document.getElementById('btn-claim-inactive-host').addEventListener('click', async () => {
+      audio.playHostCrownFanfare();
+      const room = state.roomState;
+      if (!room || room.hostId === state.uid) return;
+      const nextPlayers = cloneObj(room.players || {});
+      Object.keys(nextPlayers).forEach(pid => {
+        nextPlayers[pid].isHost = (pid === state.uid);
+      });
+      const patch = {
+        hostId: state.uid,
+        hostUserId: state.profile.userId,
+        players: nextPlayers,
+        updatedAt: Date.now()
+      };
+      const nextRoom = { ...room, ...patch };
+      state.isRoomHost = true;
+      startHostHeartbeat();
+      await cloud.updateAuthoritativeState(room.code, patch, nextRoom);
+      showToast('👑 You claimed Room Admin Host!', 'success');
+    });
+// ... existing code ... -->
+    document.querySelectorAll('.quick-adjust-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        audio.playClick();
+        const delta = parseInt(btn.dataset.delta, 10);
+        const inputEl = document.getElementById('input-guess-number');
+        const min = state.activeMode === 'online' ? (state.roomState?.min ?? 1) : (state.soloGame?.min ?? 1);
+        const max = state.activeMode === 'online' ? (state.roomState?.max ?? 100) : (state.soloGame?.max ?? 100);
+        const cur = parseInt(inputEl.value, 10);
+        const base = Number.isNaN(cur) ? Math.floor((min + max) / 2) : cur;
+        const nextVal = Math.max(min, Math.min(max, base + delta));
+        inputEl.value = nextVal;
+      });
+    });
+
+    // Built-in Mobile Touch Numpad & Toggle
+    document.getElementById('btn-toggle-numpad').addEventListener('click', () => {
+      audio.playClick();
+      state.numpadVisible = !state.numpadVisible;
+      const pad = document.getElementById('mobile-touch-numpad');
+      const lbl = document.getElementById('label-toggle-numpad');
+      pad.classList.toggle('hidden', !state.numpadVisible);
+      lbl.textContent = state.numpadVisible ? 'Hide Pad' : 'Show Pad';
+      if (!state.numpadVisible) {
+        document.getElementById('input-guess-number').focus();
+      }
+    });
+
+    document.querySelectorAll('.numpad-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        audio.playClick();
+        const key = btn.dataset.numpad;
+        const inputEl = document.getElementById('input-guess-number');
+        let curStr = String(inputEl.value || '');
+        if (key === 'clear') {
+          inputEl.value = '';
+        } else if (key === 'back') {
+          inputEl.value = curStr.slice(0, -1);
+        } else if (curStr.length < 7) {
+          inputEl.value = curStr === '0' ? key : (curStr + key);
+        }
+      });
+    });
+
+    document.getElementById('btn-submit-guess').addEventListener('click', () => {
+// ... existing code ... -->
+    document.getElementById('btn-results-hub').addEventListener('click', async () => {
+      audio.playClick();
+      await leaveCurrentRoomGracefully();
+      showView('view-hub');
+    });
+
+    window.addEventListener('pagehide', () => {
+      if (state.activeMode === 'online' && state.roomCode && cloud.mode === 'mqtt') {
+        cloud.publishMqttEvent(state.roomCode, {
+          type: 'LEAVE_ROOM',
+          playerId: state.uid
+        });
+      }
+    });
 
     /* ===================================================================
-       5. UTILITY FUNCTIONS (TOASTS, CLIPBOARD, PROXIMITY, CONFETTI)
+       15. CONFETTI CELEBRATION BURST
        =================================================================== */
-    function showToast(message, type = 'info') {
-      const container = document.getElementById('toast-container');
-      if (!container) return;
-      const el = document.createElement('div');
-      const borders = {
-        info: 'border-cyan-400/50 text-white',
-        success: 'border-emerald-400/60 text-emerald-200',
-        error: 'border-rose-500/70 text-rose-200',
-        warn: 'border-amber-400/60 text-amber-200'
-      };
-      el.className = `glass-panel rounded-2xl px-4 py-2.5 text-xs sm:text-sm font-bold shadow-xl border ${borders[type] || borders.info} animate-pop-in text-center`;
-      el.textContent = message;
-      container.appendChild(el);
-      setTimeout(() => {
-        el.style.opacity = '0';
-        el.style.transform = 'translateY(-6px)';
-        el.style.transition = 'all 0.25s ease';
-        setTimeout(() => el.remove(), 260);
-      }, 3200);
-    }
-
-    function copyTextToClipboard(text, customSuccessMsg = null) {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.left = '-9999px';
-      document.body.appendChild(ta);
-      ta.select();
-      try {
-        document.execCommand('copy');
-        showToast(customSuccessMsg || `Copied "${text}" to clipboard!`, 'success');
-      } catch (_) {
-        showToast('Code: ' + text, 'info');
-      }
-      document.body.removeChild(ta);
-    }
-
-    function buildInviteUrl(code) {
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.set('room', code);
-        return url.toString();
-      } catch (_) {
-        return `?room=${code}`;
-      }
-    }
-
-    function formatUserId(raw) {
-      let cleaned = String(raw || '').trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_@.-]/g, '');
-      if (!cleaned.startsWith('@')) cleaned = '@' + cleaned;
-      return cleaned.slice(0, 19);
-    }
-
-    // Unambiguous 5-character room code generator (excludes 0, O, 1, I)
-    function generateRoomCode() {
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-      let code = '';
-      for (let i = 0; i < 5; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      return code;
-    }
-
-    function randomIntInclusive(min, max) {
-      return Math.floor(Math.random() * (max - min + 1)) + min;
-    }
-
-    function calculateProximity(guess, secret, min, max) {
-      if (guess === secret) {
-        return { label: 'BULLSEYE!', emoji: '🎉', badgeClass: 'bg-emerald-500/25 text-emerald-300 border-emerald-400/50' };
-      }
-      const span = Math.max(1, max - min);
-      const pct = (Math.abs(guess - secret) / span) * 100;
-      if (pct <= 4) {
-        return { label: 'SCORCHING 🔥', emoji: '🔥', badgeClass: 'bg-rose-500/25 text-rose-300 border-rose-400/50' };
-      }
-      if (pct <= 12) {
-        return { label: 'HOT ♨️', emoji: '♨️', badgeClass: 'bg-orange-500/25 text-orange-300 border-orange-400/50' };
-      }
-      if (pct <= 25) {
-        return { label: 'WARM ☀️', emoji: '☀️', badgeClass: 'bg-amber-500/25 text-amber-200 border-amber-400/50' };
-      }
-      if (pct <= 48) {
-        return { label: 'COOL ❄️', emoji: '❄️', badgeClass: 'bg-sky-500/25 text-sky-200 border-sky-400/50' };
-      }
-      return { label: 'FREEZING 🧊', emoji: '🧊', badgeClass: 'bg-indigo-500/25 text-indigo-200 border-indigo-400/50' };
-    }
-
-    function launchConfetti() {
+    function triggerConfettiBurst() {
       const canvas = document.getElementById('confetti-canvas');
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
 
-      const colors = ['#00f5d4', '#ff2a85', '#fbbf24', '#a855f7', '#34d399', '#38bdf8'];
-      const particles = Array.from({ length: 120 }, () => ({
+      const colors = ['#00f5d4', '#ff2a85', '#fbbf24', '#c084fc', '#38bdf8', '#10b981'];
+      const particles = Array.from({ length: 85 }, () => ({
         x: canvas.width * (0.2 + Math.random() * 0.6),
         y: canvas.height * 0.35,
         vx: (Math.random() - 0.5) * 14,
-        vy: -Math.random() * 14 - 4,
-        size: Math.random() * 8 + 5,
+        vy: -6 - Math.random() * 10,
+        size: 6 + Math.random() * 6,
         color: colors[Math.floor(Math.random() * colors.length)],
-        rot: Math.random() * 360,
-        vRot: (Math.random() - 0.5) * 12
+        rot: Math.random() * Math.PI * 2,
+        vrot: (Math.random() - 0.5) * 0.25
       }));
 
-      let frame = 0;
-      function tick() {
+      let frames = 0;
+      function step() {
+        frames += 1;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         particles.forEach(p => {
           p.x += p.vx;
           p.y += p.vy;
-          p.vy += 0.38;
-          p.vx *= 0.99;
-          p.rot += p.vRot;
-
+          p.vy += 0.35;
+          p.rot += p.vrot;
           ctx.save();
           ctx.translate(p.x, p.y);
-          ctx.rotate((p.rot * Math.PI) / 180);
+          ctx.rotate(p.rot);
           ctx.fillStyle = p.color;
-          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.65);
           ctx.restore();
         });
-        frame++;
-        if (frame < 135) {
-          requestAnimationFrame(tick);
+        if (frames < 95) {
+          requestAnimationFrame(step);
         } else {
           ctx.clearRect(0, 0, canvas.width, canvas.height);
         }
       }
-      requestAnimationFrame(tick);
+      requestAnimationFrame(step);
     }
 
     /* ===================================================================
-       6. VIEW NAVIGATION & PROFILE PERSISTENCE
-       =================================================================== */
-    const VIEWS = ['view-login', 'view-hub', 'view-setup', 'view-lobby', 'view-arena', 'view-results'];
-
-    function showView(viewId) {
-      VIEWS.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-          if (id === viewId) el.classList.remove('hidden');
-          else el.classList.add('hidden');
-        }
-      });
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    function loadSavedProfile() {
-      try {
-        const raw = safeStorage.get(PROFILE_STORAGE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed === 'object') {
-            state.profile = {
-              userId: parsed.userId || '',
-              avatar: parsed.avatar || '🦊',
-              color: parsed.color || '#00f5d4',
-              wins: Number(parsed.wins) || 0,
-              gamesPlayed: Number(parsed.gamesPlayed) || 0
-            };
-          }
-        }
-      } catch (_) {}
-    }
-
-    function saveProfile() {
-      try {
-        safeStorage.set(PROFILE_STORAGE_KEY, JSON.stringify(state.profile));
-      } catch (_) {}
-    }
-
-    function updateProfileUI() {
-      const pill = document.getElementById('header-profile-pill');
-      if (state.profile.userId) {
-        pill.classList.remove('hidden');
-        pill.classList.add('flex');
-        document.getElementById('header-avatar').textContent = state.profile.avatar;
-        document.getElementById('header-userid').textContent = state.profile.userId;
-        document.getElementById('header-userid').style.color = state.profile.color;
-
-        document.getElementById('hub-avatar-badge').textContent = state.profile.avatar;
-        document.getElementById('hub-avatar-badge').style.borderColor = state.profile.color;
-        document.getElementById('hub-userid-display').textContent = state.profile.userId;
-        document.getElementById('hub-userid-display').style.color = state.profile.color;
-        document.getElementById('stat-wins').textContent = state.profile.wins || 0;
-        document.getElementById('stat-played').textContent = state.profile.gamesPlayed || 0;
-      } else {
-        pill.classList.add('hidden');
-        pill.classList.remove('flex');
-      }
-    }
-
-    /* ===================================================================
-       7. INITIALIZE PICKERS, 5 THEME PILLS, NETWORK DIAGNOSTICS & AUDIO
-       =================================================================== */
-    function initPickers() {
-      const avatarGrid = document.getElementById('avatar-picker-grid');
-      avatarGrid.innerHTML = '';
-      AVATARS.forEach(emoji => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.textContent = emoji;
-        btn.className = `avatar-choice text-2xl py-2 rounded-xl border transition ${state.profile.avatar === emoji ? 'pill-active' : 'btn-glass'}`;
-        btn.addEventListener('click', () => {
-          audio.playClick();
-          state.profile.avatar = emoji;
-          document.querySelectorAll('.avatar-choice').forEach(b => b.classList.remove('pill-active'));
-          btn.classList.add('pill-active');
-        });
-        avatarGrid.appendChild(btn);
-      });
-
-      const colorGrid = document.getElementById('badge-color-grid');
-      colorGrid.innerHTML = '';
-      BADGE_COLORS.forEach(c => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.title = c.label;
-        btn.className = `color-choice h-9 rounded-xl border-2 flex items-center justify-center transition ${state.profile.color === c.hex ? 'border-white scale-105' : 'border-transparent opacity-80'}`;
-        btn.style.backgroundColor = c.hex;
-        btn.addEventListener('click', () => {
-          audio.playClick();
-          state.profile.color = c.hex;
-          document.querySelectorAll('.color-choice').forEach(b => {
-            b.classList.remove('border-white', 'scale-105');
-            b.classList.add('border-transparent', 'opacity-80');
-          });
-          btn.classList.add('border-white', 'scale-105');
-          btn.classList.remove('border-transparent', 'opacity-80');
-        });
-        colorGrid.appendChild(btn);
-      });
-    }
-
-    const themeNames = {
-      cyber: 'Cyber Neon',
-      cosmic: 'Cosmic Void',
-      aurora: 'Aurora Glass',
-      solar: 'Solar Flare',
-      emerald: 'Emerald Matrix'
-    };
-
-    document.querySelectorAll('.theme-pill').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const choice = btn.dataset.themeChoice;
-        state.theme = choice;
-        document.body.setAttribute('data-theme', choice);
-        document.querySelectorAll('.theme-pill').forEach(b => {
-          b.classList.remove('pill-active');
-          b.classList.add('btn-glass');
-        });
-        btn.classList.add('pill-active');
-        btn.classList.remove('btn-glass');
-        audio.playClick();
-        showToast(`Theme: ${themeNames[choice]}`, 'info');
-      });
-    });
-
-    // Connection Status Popover & Force Re-Sync
-    document.getElementById('btn-network-status').addEventListener('click', (e) => {
-      e.stopPropagation();
-      audio.playClick();
-      document.getElementById('diag-uid').textContent = state.uid;
-      document.getElementById('network-popover').classList.toggle('hidden');
-    });
-
-    document.addEventListener('click', () => {
-      document.getElementById('network-popover').classList.add('hidden');
-    });
-
-    document.getElementById('btn-force-resync').addEventListener('click', async () => {
-      audio.playClick();
-      document.getElementById('network-popover').classList.add('hidden');
-      if (state.activeMode === 'online' && state.roomCode) {
-        const latest = await cloud.forceSyncRoom(state.roomCode);
-        if (latest) handleIncomingRoomState(latest);
-        showToast(`Synced Room ${state.roomCode} with cloud!`, 'success');
-      } else {
-        showToast('Cloud connection healthy!', 'success');
-      }
-    });
-
-    // Mobile background/foreground return handler (e.g., returning from WhatsApp/Telegram)
-    document.addEventListener('visibilitychange', async () => {
-      if (document.visibilityState === 'visible' && state.activeMode === 'online' && state.roomCode) {
-        const latest = await cloud.forceSyncRoom(state.roomCode);
-        if (latest) handleIncomingRoomState(latest);
-      }
-    });
-
-    document.getElementById('select-music-track').addEventListener('change', (e) => {
-      audio.setTrack(e.target.value);
-      if (e.target.value !== 'muted') audio.playClick();
-    });
-
-    document.getElementById('btn-toggle-sfx').addEventListener('click', () => {
-      const next = !audio.sfxEnabled;
-      audio.setSfxEnabled(next);
-      document.getElementById('icon-sfx').textContent = next ? '🔊' : '🔈';
-      document.getElementById('label-sfx').textContent = next ? 'SFX' : 'Muted';
-      if (next) audio.playClick();
-    });
-
-    ['pointerdown', 'keydown'].forEach(evt => {
-      window.addEventListener(evt, () => audio.unlock(), { once: true });
-    });
-
-    /* ===================================================================
-       8. LOGIN, HUB & ROOM CODE VALIDATION
-       =================================================================== */
-    document.getElementById('form-login').addEventListener('submit', (e) => {
-      e.preventDefault();
-      audio.unlock();
-      const raw = document.getElementById('input-userid').value;
-      const formatted = formatUserId(raw);
-      if (formatted.length < 3) {
-        audio.playInvalidShake();
-        showToast('Please enter a User ID with at least 2 characters!', 'error');
-        return;
-      }
-      state.profile.userId = formatted;
-      audio.playWinFanfare();
-      updateProfileUI();
-      saveProfile();
-      showView('view-hub');
-      showToast(`Welcome to the Online Arena, ${formatted}!`, 'success');
-
-      if (state.pendingInviteRoom) {
-        const inviteCode = state.pendingInviteRoom;
-        state.pendingInviteRoom = null;
-        document.getElementById('input-join-code').value = inviteCode;
-        validateJoinCodeInput(inviteCode);
-        setTimeout(() => joinOnlineRoom(inviteCode), 250);
-      }
-    });
-
-    document.getElementById('btn-switch-id').addEventListener('click', () => {
-      audio.playClick();
-      leaveCurrentMatchCleanup();
-      showView('view-login');
-    });
-
-    document.getElementById('btn-brand-home').addEventListener('click', () => {
-      audio.playClick();
-      if (!state.profile.userId) {
-        showView('view-login');
-      } else {
-        leaveCurrentMatchCleanup();
-        showView('view-hub');
-      }
-    });
-
-    // Live 5-character Room Code Input Formatter & Validator
-    const joinCodeInput = document.getElementById('input-join-code');
-    const joinCodeHint = document.getElementById('join-code-validation');
-
-    function validateJoinCodeInput(rawVal) {
-      const cleaned = String(rawVal || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
-      joinCodeInput.value = cleaned;
-
-      if (cleaned.length === 0) {
-        joinCodeHint.textContent = 'Enter 5 letters/numbers (e.g. K7M9P)';
-        joinCodeHint.className = 'text-[11px] font-bold text-slate-400 text-center mt-1.5';
-      } else if (cleaned.length < 5) {
-        joinCodeHint.textContent = `${5 - cleaned.length} more character${5 - cleaned.length === 1 ? '' : 's'} needed...`;
-        joinCodeHint.className = 'text-[11px] font-bold text-amber-300 text-center mt-1.5';
-      } else {
-        joinCodeHint.textContent = `✓ Code "${cleaned}" ready to join!`;
-        joinCodeHint.className = 'text-[11px] font-extrabold text-emerald-300 text-center mt-1.5';
-      }
-      return cleaned;
-    }
-
-    joinCodeInput.addEventListener('input', (e) => {
-      validateJoinCodeInput(e.target.value);
-    });
-
-    document.getElementById('form-join-code').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const cleaned = validateJoinCodeInput(joinCodeInput.value);
-      if (cleaned.length !== 5) {
-        audio.playInvalidShake();
-        joinCodeInput.classList.add('animate-shake');
-        setTimeout(() => joinCodeInput.classList.remove('animate-shake'), 380);
-        showToast('Enter a valid 5-character room code!', 'error');
-        return;
-      }
-      audio.playClick();
-      joinOnlineRoom(cleaned);
-    });
-
-    function renderDiscoveredLobbies(rooms) {
-      const listEl = document.getElementById('live-lobbies-list');
-      if (!listEl) return;
-
-      if (!rooms || rooms.length === 0) {
-        listEl.innerHTML = `<div class="text-xs text-slate-400 py-3 px-4 rounded-2xl bg-black/25 col-span-full text-center">No public waiting rooms visible right now — create a room or join with your friend's 5-character code!</div>`;
-        return;
-      }
-
-      listEl.innerHTML = '';
-      rooms.slice(0, 6).forEach(room => {
-        const count = Object.keys(room.players || {}).length;
-        const card = document.createElement('div');
-        card.className = 'glass-subcard rounded-2xl p-3 flex items-center justify-between gap-2';
-        card.innerHTML = `
-          <div class="min-w-0">
-            <div class="flex items-center gap-1.5">
-              <span class="font-mono-num text-xs font-extrabold px-2 py-0.5 rounded bg-white/10" style="color: var(--accent-primary);">${room.code}</span>
-              <span class="text-xs font-bold truncate">Host: ${room.hostUserId || '@host'}</span>
-            </div>
-            <div class="text-[11px] text-slate-400 mt-1">
-              Range ${room.min}–${room.max} • ${room.mpMode === 'chaos' ? '🌪️ Shared Chaos' : '🕵️ Race'} • ${count} player${count === 1 ? '' : 's'}
-            </div>
-          </div>
-          <button type="button" class="btn-primary px-3.5 py-2 rounded-xl text-xs uppercase tracking-wider shrink-0">Join</button>
-        `;
-        card.querySelector('button').addEventListener('click', () => {
-          audio.playClick();
-          joinOnlineRoom(room.code);
-        });
-        listEl.appendChild(card);
-      });
-    }
-
-    /* ===================================================================
-       9. SETUP CONFIGURATION (ONLINE ROOM / SOLO QUICK PLAY)
-       =================================================================== */
-    function openSetup(type) {
-      state.setupType = type;
-      const isOnline = type === 'online';
-      document.getElementById('setup-badge').textContent = isOnline ? 'CREATE ONLINE ROOM' : 'SOLO QUICK PLAY';
-      document.getElementById('setup-title').textContent = isOnline ? 'Configure Online Match' : 'Configure Solo Match';
-      document.getElementById('btn-setup-launch-text').textContent = isOnline ? 'CREATE ONLINE ROOM' : 'START SOLO MATCH';
-
-      const mpSection = document.getElementById('setup-multiplayer-options');
-      if (isOnline) mpSection.classList.remove('hidden');
-      else mpSection.classList.add('hidden');
-      showView('view-setup');
-    }
-
-    document.getElementById('btn-hub-create').addEventListener('click', () => {
-      audio.playClick();
-      openSetup('online');
-    });
-
-    document.getElementById('btn-hub-solo').addEventListener('click', () => {
-      audio.playClick();
-      openSetup('solo');
-    });
-
-    document.getElementById('btn-setup-back').addEventListener('click', () => {
-      audio.playClick();
-      showView('view-hub');
-    });
-
-    function syncRangePreview() {
-      const minVal = parseInt(document.getElementById('input-min-range').value, 10);
-      const maxVal = parseInt(document.getElementById('input-max-range').value, 10);
-      const label = document.getElementById('setup-range-preview');
-      if (!isNaN(minVal) && !isNaN(maxVal) && minVal < maxVal) {
-        label.textContent = `${minVal} — ${maxVal}`;
-        label.classList.remove('text-rose-400');
-      } else {
-        label.textContent = 'Invalid Range (Min < Max)';
-        label.classList.add('text-rose-400');
-      }
-    }
-
-    document.querySelectorAll('.range-preset').forEach(btn => {
-      btn.addEventListener('click', () => {
-        audio.playClick();
-        const [min, max] = btn.dataset.range.split(',').map(Number);
-        document.getElementById('input-min-range').value = min;
-        document.getElementById('input-max-range').value = max;
-        document.querySelectorAll('.range-preset').forEach(b => b.classList.remove('pill-active'));
-        btn.classList.add('pill-active');
-        syncRangePreview();
-      });
-    });
-
-    document.getElementById('input-min-range').addEventListener('input', () => {
-      document.querySelectorAll('.range-preset').forEach(b => b.classList.remove('pill-active'));
-      syncRangePreview();
-    });
-    document.getElementById('input-max-range').addEventListener('input', () => {
-      document.querySelectorAll('.range-preset').forEach(b => b.classList.remove('pill-active'));
-      syncRangePreview();
-    });
-
-    function syncGuessesPreview() {
-      const g = parseInt(document.getElementById('input-custom-guesses').value, 10);
-      const label = document.getElementById('setup-guesses-preview');
-      if (isNaN(g) || g < 1 || g > 99) {
-        label.textContent = 'Enter 1–99';
-      } else {
-        label.textContent = `${g} Guess${g === 1 ? '' : 'es'}`;
-      }
-    }
-
-    document.querySelectorAll('.guess-preset').forEach(btn => {
-      btn.addEventListener('click', () => {
-        audio.playClick();
-        const g = parseInt(btn.dataset.guesses, 10);
-        document.getElementById('input-custom-guesses').value = g;
-        document.querySelectorAll('.guess-preset').forEach(b => b.classList.remove('pill-active'));
-        btn.classList.add('pill-active');
-        syncGuessesPreview();
-      });
-    });
-
-    document.getElementById('input-custom-guesses').addEventListener('input', () => {
-      document.querySelectorAll('.guess-preset').forEach(b => b.classList.remove('pill-active'));
-      syncGuessesPreview();
-    });
-
-    document.querySelectorAll('.mpmode-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        audio.playClick();
-        state.setupConfig.mpMode = btn.dataset.mpmode;
-        document.querySelectorAll('.mpmode-btn').forEach(b => {
-          b.classList.remove('pill-active');
-          b.classList.add('btn-glass');
-        });
-        btn.classList.add('pill-active');
-        btn.classList.remove('btn-glass');
-      });
-    });
-
-    document.querySelectorAll('.secretmode-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        audio.playClick();
-        state.setupConfig.secretMode = btn.dataset.secretmode;
-        document.querySelectorAll('.secretmode-btn').forEach(b => {
-          b.classList.remove('pill-active');
-          b.classList.add('btn-glass');
-        });
-        btn.classList.add('pill-active');
-        btn.classList.remove('btn-glass');
-
-        const wrapper = document.getElementById('custom-secret-wrapper');
-        if (state.setupConfig.secretMode === 'host') wrapper.classList.remove('hidden');
-        else wrapper.classList.add('hidden');
-      });
-    });
-
-    document.getElementById('btn-toggle-secret-vis').addEventListener('click', () => {
-      const inp = document.getElementById('input-host-secret');
-      const btn = document.getElementById('btn-toggle-secret-vis');
-      if (inp.type === 'password') {
-        inp.type = 'text';
-        btn.textContent = '🙈 Hide';
-      } else {
-        inp.type = 'password';
-        btn.textContent = '👁️ Show';
-      }
-    });
-
-    document.getElementById('form-setup').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      audio.playClick();
-
-      const min = parseInt(document.getElementById('input-min-range').value, 10);
-      const max = parseInt(document.getElementById('input-max-range').value, 10);
-      const maxGuesses = parseInt(document.getElementById('input-custom-guesses').value, 10);
-
-      if (isNaN(min) || isNaN(max) || min >= max) {
-        audio.playInvalidShake();
-        showToast('Minimum number must be strictly less than Maximum!', 'error');
-        return;
-      }
-
-      if (isNaN(maxGuesses) || maxGuesses < 1 || maxGuesses > 99) {
-        audio.playInvalidShake();
-        showToast('Total guesses must be between 1 and 99!', 'error');
-        return;
-      }
-
-      if (state.setupType === 'solo') {
-        startSoloMatch(min, max, maxGuesses);
-        return;
-      }
-
-      let secret = randomIntInclusive(min, max);
-      const secretMode = state.setupConfig.secretMode;
-      if (secretMode === 'host') {
-        const customSec = parseInt(document.getElementById('input-host-secret').value, 10);
-        if (isNaN(customSec) || customSec < min || customSec > max) {
-          audio.playInvalidShake();
-          showToast(`Your secret number must be between ${min} and ${max}!`, 'error');
-          return;
-        }
-        secret = customSec;
-      }
-
-      await createOnlineRoom({
-        min,
-        max,
-        maxGuesses,
-        mpMode: state.setupConfig.mpMode,
-        secretMode,
-        secret
-      });
-    });
-
-    /* ===================================================================
-       10. PERSISTENT CLOUD ROOM CREATION & ATOMIC PLAYER JOINING
-       =================================================================== */
-    async function createOnlineRoom({ min, max, maxGuesses, mpMode, secretMode, secret }) {
-      leaveCurrentMatchCleanup();
-
-      const code = generateRoomCode();
-      state.activeMode = 'online';
-      state.isRoomHost = true;
-      state.roomCode = code;
-      state.lastCelebratedRoundKey = null;
-
-      const hostPlayerObj = {
-        id: state.uid,
-        userId: state.profile.userId || '@cipher_fox',
-        avatar: state.profile.avatar || '🦊',
-        color: state.profile.color || '#00f5d4',
-        isHost: true,
-        isBot: false,
-        isSpectator: secretMode === 'host',
-        guesses: [],
-        guessCount: 0,
-        privateLow: min,
-        privateHigh: max,
-        exhausted: false,
-        solved: false,
-        solvedAt: null,
-        lastProximity: null,
-        joinedAt: Date.now()
-      };
-
-      const roomData = {
-        code,
-        hostId: state.uid,
-        hostUserId: state.profile.userId || '@cipher_fox',
-        status: 'waiting',
-        roundNumber: 1,
-        min,
-        max,
-        maxGuesses,
-        mpMode,
-        secretMode,
-        secret,
-        sharedLow: min,
-        sharedHigh: max,
-        players: {
-          [state.uid]: hostPlayerObj
-        },
-        sharedGuesses: [],
-        winnerId: null,
-        winnerUserId: null,
-        winnerAvatar: null,
-        winnerGuesses: null,
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      };
-
-      try {
-        state.roomState = roomData;
-        renderLobbyView(roomData);
-        showView('view-lobby');
-
-        state.roomUnsub = await cloud.createRoom(
-          code,
-          roomData,
-          (incoming) => handleIncomingRoomState(incoming),
-          () => showToast('Cloud connection hiccup — reconnecting...', 'warn')
-        );
-
-        showToast(`Room ${code} created! Share code or link with friends.`, 'success');
-      } catch (err) {
-        console.error('Create room error:', err);
-        showToast('Could not create room. Check network and retry.', 'error');
-      }
-    }
-
-    function showJoiningModal(code) {
-      const modal = document.getElementById('modal-joining-room');
-      document.getElementById('joining-room-title').textContent = `Joining Room ${code}...`;
-      document.getElementById('joining-room-subtitle').textContent = 'Fetching cloud room state and registering your User ID...';
-      modal.classList.remove('hidden');
-    }
-
-    function hideJoiningModal() {
-      document.getElementById('modal-joining-room').classList.add('hidden');
-    }
-
-    document.getElementById('btn-cancel-join').addEventListener('click', () => {
-      audio.playClick();
-      hideJoiningModal();
-      leaveCurrentMatchCleanup();
-      showView('view-hub');
-    });
-
-    async function joinOnlineRoom(rawCode) {
-      const code = String(rawCode || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (code.length !== 5) {
-        showToast('Enter a valid 5-character room code.', 'error');
-        return;
-      }
-
-      leaveCurrentMatchCleanup();
-      state.activeMode = 'online';
-      state.isRoomHost = false;
-      state.roomCode = code;
-      state.roomState = null;
-      state.lastCelebratedRoundKey = null;
-
-      showJoiningModal(code);
-
-      const playerObj = {
-        id: state.uid,
-        userId: state.profile.userId || '@nova_77',
-        avatar: state.profile.avatar || '🚀',
-        color: state.profile.color || '#38bdf8',
-        isHost: false,
-        isBot: false,
-        isSpectator: false,
-        guesses: [],
-        guessCount: 0,
-        privateLow: 1,
-        privateHigh: 100,
-        exhausted: false,
-        solved: false,
-        solvedAt: null,
-        lastProximity: null,
-        joinedAt: Date.now()
-      };
-
-      try {
-        const res = await cloud.joinRoom(
-          code,
-          playerObj,
-          (incoming) => handleIncomingRoomState(incoming),
-          () => showToast('Syncing room state...', 'warn')
-        );
-
-        hideJoiningModal();
-
-        if (!res.ok) {
-          audio.playInvalidShake();
-          leaveCurrentMatchCleanup();
-          showToast(res.reason || `Room ${code} not found!`, 'error');
-          return;
-        }
-
-        state.roomUnsub = res.unsub;
-        audio.playWinFanfare();
-        showToast(`Joined Room ${code}!`, 'success');
-      } catch (err) {
-        hideJoiningModal();
-        leaveCurrentMatchCleanup();
-        showToast(`Failed to join Room ${code}. Check connection and retry.`, 'error');
-      }
-    }
-
-    function handleIncomingRoomState(room) {
-      if (!room) return;
-
-      const prevRound = state.roomState?.roundNumber;
-      const prevStatus = state.roomState?.status;
-      const prevPlayerCount = Object.keys(state.roomState?.players || {}).length;
-      const nextPlayerCount = Object.keys(room.players || {}).length;
-
-      state.isRoomHost = room.hostId === state.uid;
-      state.roomState = room;
-
-      if (prevStatus === 'waiting' && nextPlayerCount > prevPlayerCount) {
-        audio.playGuessPop();
-      }
-
-      // Reset guess input default on new round start
-      if (prevRound !== room.roundNumber || (prevStatus !== 'playing' && room.status === 'playing')) {
-        document.getElementById('input-guess-number').value = Math.floor((room.min + room.max) / 2);
-        resetProximityBanner();
-      }
-
-      // Check if all active guessers have exhausted their attempts
-      if (room.status === 'playing' && state.isRoomHost) {
-        const activeGuessers = Object.values(room.players || {}).filter(p => p && !p.isSpectator);
-        if (activeGuessers.length > 0 && activeGuessers.every(p => p.exhausted)) {
-          stopBotLoop();
-          const finishedRoom = {
-            ...room,
-            status: 'finished',
-            winnerId: null,
-            winnerUserId: null,
-            updatedAt: Date.now()
-          };
-          cloud.updateRoom(
-            room.code,
-            { status: 'finished', winnerId: null, winnerUserId: null, updatedAt: Date.now() },
-            finishedRoom
-          );
-          return;
-        }
-      }
-
-      if (room.status === 'waiting') {
-        renderLobbyView(room);
-        showView('view-lobby');
-      } else if (room.status === 'playing') {
-        renderOnlineArena(room);
-        showView('view-arena');
-      } else if (room.status === 'finished') {
-        stopBotLoop();
-        renderOnlineResults(room);
-        showView('view-results');
-      }
-    }
-
-    /* ===================================================================
-       11. LOBBY RENDERING, 5 GLOWING CODE TILES, INVITE LINK & BOTS
-       =================================================================== */
-    function renderLobbyView(room) {
-      if (!room) return;
-      const codeChars = String(room.code || '-----').padEnd(5, '-').slice(0, 5).split('');
-      const tilesContainer = document.getElementById('lobby-code-tiles');
-      tilesContainer.innerHTML = '';
-      codeChars.forEach(ch => {
-        const tile = document.createElement('div');
-        tile.className = 'code-tile w-12 h-14 sm:w-16 sm:h-20 rounded-2xl flex items-center justify-center font-mono-num text-2xl sm:text-4xl font-extrabold animate-pop-in';
-        tile.textContent = ch;
-        tilesContainer.appendChild(tile);
-      });
-
-      const rulesEl = document.getElementById('lobby-rules-pills');
-      const guessesLabel = `${room.maxGuesses} Guess${room.maxGuesses === 1 ? '' : 'es'}`;
-      const modeLabel = room.mpMode === 'chaos' ? '🌪️ Shared Chaos' : '🕵️ Race Mode (Private Hints)';
-      const secretLabel = room.secretMode === 'host' ? '🤫 Host Picks Secret' : '🎲 Auto-Random';
-      rulesEl.innerHTML = `
-        <span class="px-3 py-1 rounded-xl bg-white/10 font-mono-num text-xs font-bold">Range: ${room.min}–${room.max}</span>
-        <span class="px-3 py-1 rounded-xl bg-white/10 text-xs font-bold">${guessesLabel}</span>
-        <span class="px-3 py-1 rounded-xl bg-white/10 text-xs font-bold">${modeLabel}</span>
-        <span class="px-3 py-1 rounded-xl bg-white/10 text-xs font-bold">${secretLabel}</span>
-      `;
-
-      const playersMap = (room.players && typeof room.players === 'object') ? room.players : {};
-      const players = Object.values(playersMap).sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
-      document.getElementById('lobby-player-count').textContent = players.length;
-
-      const grid = document.getElementById('lobby-players-grid');
-      grid.innerHTML = '';
-      players.forEach(p => {
-        const roleLabel = p.isHost ? '👑 Room Host' : p.isBot ? '🤖 AI Bot' : '🎮 Challenger';
-        const card = document.createElement('div');
-        card.className = 'glass-subcard rounded-2xl p-3 flex items-center justify-between';
-        card.innerHTML = `
-          <div class="flex items-center gap-2.5 min-w-0">
-            <span class="w-10 h-10 rounded-xl bg-black/40 flex items-center justify-center text-xl border" style="border-color: ${p.color || '#00f5d4'};">
-              ${p.avatar || '🦊'}
-            </span>
-            <div class="min-w-0">
-              <div class="text-sm font-extrabold truncate" style="color: ${p.color || '#fff'};">${p.userId || '@player'}</div>
-              <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">${roleLabel}</div>
-            </div>
-          </div>
-          <span class="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold uppercase">Ready</span>
-        `;
-        grid.appendChild(card);
-      });
-
-      const isHost = room.hostId === state.uid;
-      const startBtn = document.getElementById('btn-lobby-start');
-      const waitBox = document.getElementById('lobby-guest-wait');
-      const addBotBtn = document.getElementById('btn-lobby-add-bot');
-
-      if (isHost) {
-        startBtn.classList.remove('hidden');
-        addBotBtn.classList.remove('hidden');
-        waitBox.classList.add('hidden');
-      } else {
-        startBtn.classList.add('hidden');
-        addBotBtn.classList.add('hidden');
-        waitBox.classList.remove('hidden');
-      }
-    }
-
-    document.getElementById('btn-copy-code').addEventListener('click', () => {
-      audio.playClick();
-      if (state.roomCode) copyTextToClipboard(state.roomCode, `Copied Room Code "${state.roomCode}"!`);
-    });
-
-    document.getElementById('btn-share-invite').addEventListener('click', async () => {
-      audio.playClick();
-      if (!state.roomCode) return;
-      const inviteUrl = buildInviteUrl(state.roomCode);
-      const shareText = `Join my Guess The Number match! Room Code: ${state.roomCode}`;
-
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: 'GUESS THE NUMBER — Online Arena',
-            text: shareText,
-            url: inviteUrl
-          });
-          return;
-        } catch (_) {}
-      }
-      copyTextToClipboard(inviteUrl, `Invite link copied! Friends can tap to auto-join ${state.roomCode}.`);
-    });
-
-    document.getElementById('btn-lobby-add-bot').addEventListener('click', async () => {
-      audio.playClick();
-      const room = state.roomState;
-      if (!room || room.hostId !== state.uid) return;
-
-      const players = Object.values(room.players || {});
-      const botCount = players.filter(p => p.isBot).length;
-      if (botCount >= 3) {
-        showToast('Maximum 3 bots per lobby!', 'warn');
-        return;
-      }
-
-      const template = BOT_PROFILES[botCount % BOT_PROFILES.length];
-      const botId = `bot_${botCount + 1}_${Date.now().toString(36).slice(-4)}`;
-      const botPlayer = {
-        id: botId,
-        userId: template.userId,
-        avatar: template.avatar,
-        color: template.color,
-        isHost: false,
-        isBot: true,
-        isSpectator: false,
-        guesses: [],
-        guessCount: 0,
-        privateLow: room.min,
-        privateHigh: room.max,
-        exhausted: false,
-        solved: false,
-        solvedAt: null,
-        lastProximity: null,
-        joinedAt: Date.now()
-      };
-
-      const nextRoom = structuredCloneSafe(room);
-      nextRoom.players[botId] = botPlayer;
-      nextRoom.updatedAt = Date.now();
-
-      await cloud.updateRoom(
-        room.code,
-        { [`players.${botId}`]: botPlayer, updatedAt: nextRoom.updatedAt },
-        nextRoom
-      );
-      showToast(`${template.userId} joined the lobby!`, 'success');
-    });
-
-    function startBotLoopIfHost() {
-      stopBotLoop();
-      const room = state.roomState;
-      if (!room || room.hostId !== state.uid || room.status !== 'playing') return;
-
-      const bots = Object.values(room.players || {}).filter(p => p.isBot && !p.exhausted && !p.solved);
-      if (bots.length === 0) return;
-
-      state.botTimerId = setInterval(async () => {
-        const cur = state.roomState;
-        if (!cur || cur.hostId !== state.uid || cur.status !== 'playing') {
-          stopBotLoop();
-          return;
-        }
-        const activeBots = Object.values(cur.players || {}).filter(p => p.isBot && !p.exhausted && !p.solved);
-        if (activeBots.length === 0) {
-          stopBotLoop();
-          return;
-        }
-        const bot = activeBots[Math.floor(Math.random() * activeBots.length)];
-        const low = cur.mpMode === 'chaos' ? cur.sharedLow : bot.privateLow;
-        const high = cur.mpMode === 'chaos' ? cur.sharedHigh : bot.privateHigh;
-        const safeLow = Math.min(low, high);
-        const safeHigh = Math.max(low, high);
-        const mid = Math.floor((safeLow + safeHigh) / 2);
-        const jitter = Math.max(0, Math.floor((safeHigh - safeLow) * 0.2));
-        const guessVal = Math.max(safeLow, Math.min(safeHigh, mid + randomIntInclusive(-jitter, jitter)));
-
-        await submitMultiplayerGuessForPlayer(bot.id, guessVal);
-      }, 2200);
-    }
-
-    function stopBotLoop() {
-      if (state.botTimerId) {
-        clearInterval(state.botTimerId);
-        state.botTimerId = null;
-      }
-    }
-
-    document.getElementById('btn-lobby-leave').addEventListener('click', () => {
-      audio.playClick();
-      leaveCurrentMatchCleanup();
-      showView('view-hub');
-    });
-
-    document.getElementById('btn-lobby-start').addEventListener('click', async () => {
-      audio.playClick();
-      const room = state.roomState;
-      if (!room || room.hostId !== state.uid) return;
-
-      const players = Object.values(room.players || {});
-      if (room.secretMode === 'host' && players.length < 2) {
-        audio.playInvalidShake();
-        showToast('Wait for at least 1 friend or click "+ Add Bot" before starting!', 'warn');
-        return;
-      }
-
-      const nextRoom = structuredCloneSafe(room);
-      nextRoom.status = 'playing';
-      nextRoom.updatedAt = Date.now();
-
-      await cloud.updateRoom(
-        room.code,
-        { status: 'playing', updatedAt: nextRoom.updatedAt },
-        nextRoom
-      );
-      startBotLoopIfHost();
-    });
-
-    /* ===================================================================
-       12. SOLO QUICK PLAY ENGINE
-       =================================================================== */
-    function startSoloMatch(min, max, maxGuesses) {
-      leaveCurrentMatchCleanup();
-      state.activeMode = 'solo';
-      state.lastCelebratedRoundKey = null;
-
-      state.soloGame = {
-        roundId: Date.now(),
-        min,
-        max,
-        maxGuesses,
-        secret: randomIntInclusive(min, max),
-        guesses: [],
-        guessCount: 0,
-        status: 'playing',
-        won: false
-      };
-
-      state.localBounds = { low: min, high: max };
-      document.getElementById('input-guess-number').value = Math.floor((min + max) / 2);
-      resetProximityBanner();
-      renderSoloArena();
-      showView('view-arena');
-    }
-
-    function renderSoloArena() {
-      const g = state.soloGame;
-      if (!g) return;
-      document.getElementById('arena-mode-pill').textContent = '🎯 SOLO QUICK PLAY';
-      document.getElementById('arena-room-pill').classList.add('hidden');
-      document.getElementById('arena-players-strip').classList.add('hidden');
-      document.getElementById('history-feed-title').textContent = 'Your Guess History';
-
-      updateGuessesRemainingBadge(g.guessCount, g.maxGuesses);
-      updateDynamicRangeBar(g.min, g.max, state.localBounds.low, state.localBounds.high);
-
-      document.getElementById('arena-controls-wrapper').classList.remove('hidden');
-      document.getElementById('arena-spectator-box').classList.add('hidden');
-
-      renderGuessHistoryList(g.guesses, false);
-    }
-
-    /* ===================================================================
-       13. INTERACTIVE ARENA RENDERING & GUESS SUBMISSION
-       =================================================================== */
-    function resetProximityBanner() {
-      document.getElementById('proximity-emoji').textContent = '🔮';
-      document.getElementById('proximity-title').textContent = 'Make Your First Guess!';
-      document.getElementById('proximity-subtitle').textContent = 'Enter a number inside the active range below to scan proximity.';
-    }
-
-    function updateGuessesRemainingBadge(used, maxGuesses) {
-      const badge = document.getElementById('arena-guesses-badge');
-      const textEl = document.getElementById('arena-guesses-text');
-      badge.classList.remove('animate-danger-pulse', 'border-red-500', 'text-red-300', 'border-amber-400', 'text-amber-300');
-
-      const left = Math.max(0, maxGuesses - used);
-      textEl.textContent = `${left} / ${maxGuesses} Left`;
-
-      if (left === 1) {
-        badge.classList.add('animate-danger-pulse', 'border-red-500', 'text-red-300');
-      } else if (left === 2) {
-        badge.classList.add('border-amber-400', 'text-amber-300');
-      }
-    }
-
-    function updateDynamicRangeBar(absMin, absMax, curLow, curHigh) {
-      document.getElementById('range-abs-min').textContent = `Min: ${absMin}`;
-      document.getElementById('range-abs-max').textContent = `Max: ${absMax}`;
-      document.getElementById('range-bounds-label').textContent = `${curLow} — ${curHigh}`;
-
-      const possibilities = Math.max(1, curHigh - curLow + 1);
-      document.getElementById('range-possibilities-label').textContent = `${possibilities} number${possibilities === 1 ? '' : 's'} left`;
-
-      const totalSpan = Math.max(1, absMax - absMin);
-      const activeSpan = Math.max(0, curHigh - curLow);
-      const leftPct = Math.max(0, Math.min(100, ((curLow - absMin) / totalSpan) * 100));
-      const widthPct = Math.max(8, Math.min(100 - leftPct, (activeSpan / totalSpan) * 100));
-      const zonePct = Math.round(((activeSpan + 1) / (totalSpan + 1)) * 100);
-
-      const fill = document.getElementById('dynamic-range-fill');
-      fill.style.marginLeft = `${leftPct}%`;
-      fill.style.width = `${widthPct}%`;
-      fill.textContent = zonePct >= 14 ? `${zonePct}% ZONE` : '';
-    }
-
-    function renderOnlineArena(room) {
-      if (!room) return;
-      const playersMap = (room.players && typeof room.players === 'object') ? room.players : {};
-      const me = playersMap[state.uid];
-      const isChaos = room.mpMode === 'chaos';
-
-      document.getElementById('arena-mode-pill').textContent = isChaos ? '🌪️ SHARED CHAOS' : '🕵️ RACE MODE';
-      const roomPill = document.getElementById('arena-room-pill');
-      roomPill.textContent = `ROOM: ${room.code}`;
-      roomPill.classList.remove('hidden');
-
-      // Live Opponent Progress Bars
-      const strip = document.getElementById('arena-players-strip');
-      const list = document.getElementById('arena-players-list');
-      strip.classList.remove('hidden');
-      list.innerHTML = '';
-
-      Object.values(playersMap).forEach(p => {
-        if (!p) return;
-        const prox = p.lastProximity;
-        const statusText = p.isSpectator
-          ? '👁️ Host Secret'
-          : p.solved
-            ? '🏆 Solved!'
-            : p.exhausted
-              ? '💀 Out'
-              : prox
-                ? prox.label
-                : '⏳ Ready';
-
-        const maxG = room.maxGuesses || 7;
-        const usedG = p.guessCount || 0;
-        const progressPct = p.isSpectator ? 100 : Math.min(100, Math.round((usedG / maxG) * 100));
-
-        const pill = document.createElement('div');
-        pill.className = 'glass-subcard rounded-xl px-3 py-2 flex flex-col gap-1.5 shrink-0 min-w-[160px] border border-white/10';
-        pill.innerHTML = `
-          <div class="flex items-center gap-2">
-            <span class="text-lg">${p.avatar || '🦊'}</span>
-            <div class="min-w-0 flex-1">
-              <div class="text-xs font-extrabold leading-none truncate" style="color: ${p.color || '#fff'};">${p.userId || '@player'}</div>
-              <div class="text-[10px] font-bold text-slate-300 mt-1">
-                ${p.isSpectator ? statusText : `${usedG}/${maxG} • ${statusText}`}
-              </div>
-            </div>
-          </div>
-          <div class="w-full h-1.5 rounded-full bg-black/50 overflow-hidden">
-            <div class="h-full rounded-full transition-all duration-300" style="width: ${progressPct}%; background-color: ${p.color || '#00f5d4'};"></div>
-          </div>
-        `;
-        list.appendChild(pill);
-      });
-
-      const activeLow = isChaos ? (room.sharedLow ?? room.min) : (me?.privateLow ?? room.min);
-      const activeHigh = isChaos ? (room.sharedHigh ?? room.max) : (me?.privateHigh ?? room.max);
-      state.localBounds = { low: activeLow, high: activeHigh };
-
-      const myGuessesCount = me ? (me.guessCount || 0) : 0;
-      updateGuessesRemainingBadge(myGuessesCount, room.maxGuesses);
-      updateDynamicRangeBar(room.min, room.max, activeLow, activeHigh);
-
-      const controlsEl = document.getElementById('arena-controls-wrapper');
-      const specBox = document.getElementById('arena-spectator-box');
-
-      if (!me || me.isSpectator) {
-        controlsEl.classList.add('hidden');
-        specBox.classList.remove('hidden');
-        document.getElementById('spectator-icon').textContent = '👁️';
-        document.getElementById('spectator-title').textContent = 'Host Spectator View';
-        document.getElementById('spectator-desc').textContent = room.hostId === state.uid
-          ? `Your Secret Number: ${room.secret} — Watching players battle in real time!`
-          : 'Spectating live match in real time!';
-      } else if (me.exhausted) {
-        controlsEl.classList.add('hidden');
-        specBox.classList.remove('hidden');
-        document.getElementById('spectator-icon').textContent = '⌛';
-        document.getElementById('spectator-title').textContent = 'Out of Guesses!';
-        document.getElementById('spectator-desc').textContent = 'Hang tight while remaining players finish their attempts...';
-      } else {
-        controlsEl.classList.remove('hidden');
-        specBox.classList.add('hidden');
-      }
-
-      document.getElementById('history-feed-title').textContent = isChaos ? 'Shared Chaos Live Feed' : 'Your Guess History';
-      const feedItems = isChaos ? (Array.isArray(room.sharedGuesses) ? room.sharedGuesses : []) : (Array.isArray(me?.guesses) ? me.guesses : []);
-      renderGuessHistoryList(feedItems, isChaos);
-    }
-
-    function renderGuessHistoryList(items, showPlayerMeta) {
-      const container = document.getElementById('guess-history-list');
-      const safeItems = Array.isArray(items) ? items : [];
-      document.getElementById('history-count-badge').textContent = safeItems.length;
-
-      if (safeItems.length === 0) {
-        container.innerHTML = `<div class="text-center py-10 text-xs text-slate-400">No guesses yet. Take your shot!</div>`;
-        return;
-      }
-
-      const reversed = [...safeItems].reverse();
-      container.innerHTML = '';
-      reversed.forEach((item, idx) => {
-        if (!item) return;
-        const attemptNum = safeItems.length - idx;
-        let dirBadge = '';
-        if (item.direction === 'WINNER') {
-          dirBadge = `<span class="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-emerald-500/25 text-emerald-300 border border-emerald-400/40">🏆 WINNER</span>`;
-        } else if (item.direction === 'HIGHER') {
-          dirBadge = `<span class="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-cyan-500/20 text-cyan-300 border border-cyan-400/40">⬆️ HIGHER</span>`;
-        } else {
-          dirBadge = `<span class="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-pink-500/20 text-pink-300 border border-pink-400/40">⬇️ LOWER</span>`;
-        }
-
-        const row = document.createElement('div');
-        row.className = 'glass-subcard rounded-2xl px-3.5 py-2.5 flex items-center justify-between gap-2 animate-pop-in';
-        row.innerHTML = `
-          <div class="flex items-center gap-2.5 min-w-0">
-            <span class="font-mono-num text-[11px] font-bold text-slate-400">#${attemptNum}</span>
-            ${showPlayerMeta ? `<span class="text-base">${item.avatar || '🦊'}</span>` : ''}
-            <div class="min-w-0">
-              <div class="font-mono-num text-base font-extrabold text-white leading-none">${item.number}</div>
-              ${showPlayerMeta ? `<div class="text-[10px] font-bold truncate mt-0.5" style="color: ${item.color || '#94a3b8'};">${item.userId || '@player'}</div>` : ''}
-            </div>
-          </div>
-          <div class="flex items-center gap-1.5 shrink-0">
-            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold border ${item.proximity?.badgeClass || ''}">
-              ${item.proximity?.label || ''}
-            </span>
-            ${dirBadge}
-          </div>
-        `;
-        container.appendChild(row);
-      });
-    }
-
-    document.querySelectorAll('.quick-adjust-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        audio.playClick();
-        const delta = parseInt(btn.dataset.delta, 10);
-        const inp = document.getElementById('input-guess-number');
-        const bounds = state.activeMode === 'online' && state.roomState
-          ? { min: state.roomState.min, max: state.roomState.max }
-          : state.soloGame
-            ? { min: state.soloGame.min, max: state.soloGame.max }
-            : { min: 1, max: 100 };
-
-        let cur = parseInt(inp.value, 10);
-        if (isNaN(cur)) cur = Math.floor((state.localBounds.low + state.localBounds.high) / 2);
-        inp.value = Math.max(bounds.min, Math.min(bounds.max, cur + delta));
-      });
-    });
-
-    document.getElementById('btn-submit-guess').addEventListener('click', handleGuessSubmit);
-    document.getElementById('input-guess-number').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        handleGuessSubmit();
-      }
-    });
-
-    async function handleGuessSubmit() {
-      const inp = document.getElementById('input-guess-number');
-      const val = parseInt(inp.value, 10);
-
-      const bounds = state.activeMode === 'online' && state.roomState
-        ? { min: state.roomState.min, max: state.roomState.max }
-        : state.soloGame
-          ? { min: state.soloGame.min, max: state.soloGame.max }
-          : null;
-
-      if (!bounds || isNaN(val) || val < bounds.min || val > bounds.max) {
-        audio.playInvalidShake();
-        inp.classList.add('animate-shake');
-        setTimeout(() => inp.classList.remove('animate-shake'), 380);
-        showToast(`Enter a valid number between ${bounds?.min} and ${bounds?.max}!`, 'error');
-        return;
-      }
-
-      audio.playGuessPop();
-
-      if (state.activeMode === 'solo') {
-        processSoloGuess(val);
-      } else if (state.activeMode === 'online') {
-        await submitMultiplayerGuessForPlayer(state.uid, val);
-      }
-    }
-
-    function applyFeedbackBanner(guess, direction, prox) {
-      const emojiEl = document.getElementById('proximity-emoji');
-      const titleEl = document.getElementById('proximity-title');
-      const subEl = document.getElementById('proximity-subtitle');
-
-      if (direction === 'WINNER') {
-        emojiEl.textContent = '🎉';
-        titleEl.textContent = `${guess} IS THE SECRET NUMBER!`;
-        subEl.textContent = 'Incredible deduction!';
-      } else if (direction === 'HIGHER') {
-        emojiEl.textContent = prox?.emoji || '⬆️';
-        titleEl.textContent = `${prox?.label || ''} — ⬆️ HIGHER`;
-        subEl.textContent = `The secret number is higher than ${guess}.`;
-      } else {
-        emojiEl.textContent = prox?.emoji || '⬇️';
-        titleEl.textContent = `${prox?.label || ''} — ⬇️ LOWER`;
-        subEl.textContent = `The secret number is lower than ${guess}.`;
-      }
-    }
-
-    function playDirectionAndProximitySFX(direction, prox, remainingGuesses) {
-      if (prox && prox.label.startsWith('SCORCHING')) {
-        audio.playScorchingAlert();
-      } else if (direction === 'HIGHER') {
-        audio.playTooLow();
-      } else {
-        audio.playTooHigh();
-      }
-
-      if (remainingGuesses === 1) {
-        setTimeout(() => audio.playLastGuessTick(), 240);
-      }
-    }
-
-    function processSoloGuess(val) {
-      const g = state.soloGame;
-      if (!g || g.status !== 'playing') return;
-
-      const direction = val === g.secret ? 'WINNER' : val < g.secret ? 'HIGHER' : 'LOWER';
-      const prox = calculateProximity(val, g.secret, g.min, g.max);
-
-      g.guessCount += 1;
-      g.guesses.push({
-        number: val,
-        direction,
-        proximity: prox,
-        timestamp: Date.now()
-      });
-
-      if (direction === 'HIGHER' && val + 1 > state.localBounds.low) {
-        state.localBounds.low = Math.min(g.max, val + 1);
-      } else if (direction === 'LOWER' && val - 1 < state.localBounds.high) {
-        state.localBounds.high = Math.max(g.min, val - 1);
-      }
-
-      applyFeedbackBanner(val, direction, prox);
-
-      if (direction === 'WINNER') {
-        g.status = 'finished';
-        g.won = true;
-        audio.playWinFanfare();
-        launchConfetti();
-        state.profile.wins = (state.profile.wins || 0) + 1;
-        state.profile.gamesPlayed = (state.profile.gamesPlayed || 0) + 1;
-        updateProfileUI();
-        saveProfile();
-        renderSoloResults();
-        showView('view-results');
-        return;
-      }
-
-      if (g.guessCount >= g.maxGuesses) {
-        g.status = 'finished';
-        g.won = false;
-        audio.playLoseSound();
-        state.profile.gamesPlayed = (state.profile.gamesPlayed || 0) + 1;
-        updateProfileUI();
-        saveProfile();
-        renderSoloResults();
-        showView('view-results');
-        return;
-      }
-
-      const rem = g.maxGuesses - g.guessCount;
-      playDirectionAndProximitySFX(direction, prox, rem);
-      renderSoloArena();
-    }
-
-    async function submitMultiplayerGuessForPlayer(playerId, val) {
-      const room = state.roomState;
-      if (!room || room.status !== 'playing') return;
-      const player = room.players?.[playerId];
-      if (!player || player.isSpectator || player.exhausted || player.solved) return;
-
-      const secret = Number(room.secret);
-      const direction = val === secret ? 'WINNER' : val < secret ? 'HIGHER' : 'LOWER';
-      const prox = calculateProximity(val, secret, room.min, room.max);
-      const newCount = (player.guessCount || 0) + 1;
-      const isExhausted = direction !== 'WINNER' && newCount >= room.maxGuesses;
-
-      let nextPrivateLow = player.privateLow ?? room.min;
-      let nextPrivateHigh = player.privateHigh ?? room.max;
-      if (direction === 'HIGHER' && val + 1 > nextPrivateLow) {
-        nextPrivateLow = Math.min(room.max, val + 1);
-      } else if (direction === 'LOWER' && val - 1 < nextPrivateHigh) {
-        nextPrivateHigh = Math.max(room.min, val - 1);
-      }
-
-      let nextSharedLow = room.sharedLow ?? room.min;
-      let nextSharedHigh = room.sharedHigh ?? room.max;
-      if (direction === 'HIGHER' && val + 1 > nextSharedLow) {
-        nextSharedLow = Math.min(room.max, val + 1);
-      } else if (direction === 'LOWER' && val - 1 < nextSharedHigh) {
-        nextSharedHigh = Math.max(room.min, val - 1);
-      }
-
-      const entry = {
-        playerId: player.id,
-        userId: player.userId,
-        avatar: player.avatar,
-        color: player.color,
-        number: val,
-        direction,
-        proximity: prox,
-        timestamp: Date.now()
-      };
-
-      const updatedPlayer = {
-        ...player,
-        guesses: [...(Array.isArray(player.guesses) ? player.guesses : []), entry],
-        guessCount: newCount,
-        privateLow: nextPrivateLow,
-        privateHigh: nextPrivateHigh,
-        exhausted: isExhausted,
-        solved: direction === 'WINNER',
-        solvedAt: direction === 'WINNER' ? Date.now() : null,
-        lastProximity: prox
-      };
-
-      if (playerId === state.uid) {
-        applyFeedbackBanner(val, direction, prox);
-        if (direction !== 'WINNER' && !isExhausted) {
-          playDirectionAndProximitySFX(direction, prox, room.maxGuesses - newCount);
-        }
-      }
-
-      // Build atomic Firestore patch + full merged object for MQTT fallback
-      const now = Date.now();
-      const firestorePatch = {
-        [`players.${playerId}`]: updatedPlayer,
-        sharedLow: nextSharedLow,
-        sharedHigh: nextSharedHigh,
-        updatedAt: now
-      };
-
-      if (cloud.mode === 'firebase') {
-        firestorePatch.sharedGuesses = arrayUnion(entry);
-      }
-
-      const nextRoom = structuredCloneSafe(room);
-      nextRoom.players[playerId] = updatedPlayer;
-      nextRoom.sharedLow = nextSharedLow;
-      nextRoom.sharedHigh = nextSharedHigh;
-      nextRoom.sharedGuesses = [...(Array.isArray(nextRoom.sharedGuesses) ? nextRoom.sharedGuesses : []), entry];
-      nextRoom.updatedAt = now;
-
-      if (direction === 'WINNER') {
-        firestorePatch.status = 'finished';
-        firestorePatch.winnerId = player.id;
-        firestorePatch.winnerUserId = player.userId;
-        firestorePatch.winnerAvatar = player.avatar;
-        firestorePatch.winnerGuesses = newCount;
-
-        nextRoom.status = 'finished';
-        nextRoom.winnerId = player.id;
-        nextRoom.winnerUserId = player.userId;
-        nextRoom.winnerAvatar = player.avatar;
-        nextRoom.winnerGuesses = newCount;
-      } else {
-        const activeGuessers = Object.values(nextRoom.players).filter(p => p && !p.isSpectator);
-        if (activeGuessers.length > 0 && activeGuessers.every(p => p.exhausted)) {
-          firestorePatch.status = 'finished';
-          firestorePatch.winnerId = null;
-          firestorePatch.winnerUserId = null;
-
-          nextRoom.status = 'finished';
-          nextRoom.winnerId = null;
-          nextRoom.winnerUserId = null;
-        }
-      }
-
-      await cloud.updateRoom(room.code, firestorePatch, nextRoom);
-    }
-
-    /* ===================================================================
-       14. ROUND RESULTS, PODIUM & REMATCH FLOW
-       =================================================================== */
-    function renderSoloResults() {
-      const g = state.soloGame;
-      if (!g) return;
-      document.getElementById('results-hero-emoji').textContent = g.won ? '🏆' : '💥';
-      document.getElementById('results-headline').textContent = g.won ? 'You Cracked It!' : 'Out of Guesses!';
-      document.getElementById('results-subheadline').textContent = g.won
-        ? `Solved in ${g.guessCount} attempt${g.guessCount === 1 ? '' : 's'}!`
-        : `Better luck next round, ${state.profile.userId || '@player'}!`;
-      document.getElementById('results-secret-number').textContent = g.secret;
-
-      const list = document.getElementById('results-standings-list');
-      list.innerHTML = `
-        <div class="glass-subcard rounded-2xl p-3.5 flex items-center justify-between border border-white/15">
-          <div class="flex items-center gap-3">
-            <span class="text-2xl">${state.profile.avatar}</span>
-            <div>
-              <div class="font-extrabold text-sm" style="color: ${state.profile.color};">${state.profile.userId}</div>
-              <div class="text-xs text-slate-400">Range ${g.min}–${g.max}</div>
-            </div>
-          </div>
-          <div class="font-mono-num text-sm font-extrabold ${g.won ? 'text-emerald-300' : 'text-rose-300'}">
-            ${g.won ? `${g.guessCount} Guesses` : 'Failed'}
-          </div>
-        </div>
-      `;
-
-      document.getElementById('btn-results-next-round').classList.remove('hidden');
-      document.getElementById('results-guest-wait').classList.add('hidden');
-    }
-
-    function renderOnlineResults(room) {
-      if (!room) return;
-      const roundKey = `${room.code}_${room.roundNumber}`;
-      const hasWinner = Boolean(room.winnerId);
-      const iWon = room.winnerId === state.uid;
-      const playersMap = (room.players && typeof room.players === 'object') ? room.players : {};
-
-      if (state.lastCelebratedRoundKey !== roundKey) {
-        state.lastCelebratedRoundKey = roundKey;
-        if (hasWinner) {
-          audio.playWinFanfare();
-          launchConfetti();
-        } else {
-          audio.playLoseSound();
-        }
-
-        const me = playersMap[state.uid];
-        if (me && !me.isSpectator) {
-          state.profile.gamesPlayed = (state.profile.gamesPlayed || 0) + 1;
-          if (iWon) state.profile.wins = (state.profile.wins || 0) + 1;
-          updateProfileUI();
-          saveProfile();
-        }
-      }
-
-      document.getElementById('results-hero-emoji').textContent = hasWinner ? '🏆' : '💥';
-      document.getElementById('results-headline').textContent = hasWinner ? 'Number Cracked!' : 'Nobody Got It!';
-      document.getElementById('results-subheadline').textContent = hasWinner
-        ? `${room.winnerAvatar || '🎉'} ${room.winnerUserId} cracked the code in ${room.winnerGuesses} guess${room.winnerGuesses === 1 ? '' : 'es'}!`
-        : 'All challengers ran out of guesses!';
-      document.getElementById('results-secret-number').textContent = room.secret;
-
-      const players = Object.values(playersMap).filter(p => p && !p.isSpectator);
-      players.sort((a, b) => {
-        if (a.solved && !b.solved) return -1;
-        if (!a.solved && b.solved) return 1;
-        if (a.solved && b.solved) return (a.guessCount || 999) - (b.guessCount || 999);
-        return (a.guessCount || 0) - (b.guessCount || 0);
-      });
-
-      const list = document.getElementById('results-standings-list');
-      list.innerHTML = '';
-      players.forEach((p, idx) => {
-        const medal = idx === 0 && p.solved ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
-        const row = document.createElement('div');
-        row.className = `glass-subcard rounded-2xl p-3.5 flex items-center justify-between border ${p.solved ? 'border-emerald-400/50 bg-emerald-500/10' : 'border-white/10'}`;
-        row.innerHTML = `
-          <div class="flex items-center gap-3 min-w-0">
-            <span class="font-mono-num text-base font-extrabold w-7 text-center">${medal}</span>
-            <span class="text-2xl">${p.avatar || '🦊'}</span>
-            <div class="min-w-0">
-              <div class="font-extrabold text-sm truncate" style="color: ${p.color || '#fff'};">${p.userId || '@player'}</div>
-              <div class="text-[11px] text-slate-400">
-                ${p.lastProximity ? `Last scan: ${p.lastProximity.label}` : 'No guesses'}
-              </div>
-            </div>
-          </div>
-          <div class="font-mono-num text-xs sm:text-sm font-extrabold shrink-0 ${p.solved ? 'text-emerald-300' : 'text-slate-300'}">
-            ${p.solved ? `${p.guessCount} Guess${p.guessCount === 1 ? '' : 'es'}` : `${p.guessCount || 0} Used`}
-          </div>
-        `;
-        list.appendChild(row);
-      });
-
-      const isHost = room.hostId === state.uid;
-      const nextBtn = document.getElementById('btn-results-next-round');
-      const guestWait = document.getElementById('results-guest-wait');
-      if (isHost) {
-        nextBtn.classList.remove('hidden');
-        guestWait.classList.add('hidden');
-      } else {
-        nextBtn.classList.add('hidden');
-        guestWait.classList.remove('hidden');
-      }
-    }
-
-    document.getElementById('btn-results-next-round').addEventListener('click', async () => {
-      audio.playClick();
-      if (state.activeMode === 'solo' && state.soloGame) {
-        startSoloMatch(state.soloGame.min, state.soloGame.max, state.soloGame.maxGuesses);
-        return;
-      }
-
-      const room = state.roomState;
-      if (!room || room.hostId !== state.uid) return;
-
-      if (room.secretMode === 'host') {
-        document.getElementById('modal-secret-range-hint').textContent = `Enter a secret number between ${room.min} and ${room.max}.`;
-        document.getElementById('modal-secret-input').value = '';
-        document.getElementById('modal-host-secret').classList.remove('hidden');
-        return;
-      }
-
-      await resetOnlineRoomForNextRound(randomIntInclusive(room.min, room.max));
-    });
-
-    document.getElementById('btn-modal-secret-cancel').addEventListener('click', () => {
-      audio.playClick();
-      document.getElementById('modal-host-secret').classList.add('hidden');
-    });
-
-    document.getElementById('btn-modal-secret-confirm').addEventListener('click', async () => {
-      audio.playClick();
-      const room = state.roomState;
-      if (!room) return;
-      const val = parseInt(document.getElementById('modal-secret-input').value, 10);
-      if (isNaN(val) || val < room.min || val > room.max) {
-        audio.playInvalidShake();
-        showToast(`Secret number must be between ${room.min} and ${room.max}!`, 'error');
-        return;
-      }
-      document.getElementById('modal-host-secret').classList.add('hidden');
-      await resetOnlineRoomForNextRound(val);
-    });
-
-    async function resetOnlineRoomForNextRound(newSecret) {
-      const room = state.roomState;
-      if (!room || room.hostId !== state.uid) return;
-
-      const resetPlayers = {};
-      Object.entries(room.players || {}).forEach(([pid, p]) => {
-        resetPlayers[pid] = {
-          ...p,
-          isSpectator: room.secretMode === 'host' && pid === room.hostId,
-          guesses: [],
-          guessCount: 0,
-          privateLow: room.min,
-          privateHigh: room.max,
-          exhausted: false,
-          solved: false,
-          solvedAt: null,
-          lastProximity: null
-        };
-      });
-
-      const nextRoundNum = (room.roundNumber || 1) + 1;
-      const now = Date.now();
-      const nextRoom = {
-        ...room,
-        status: 'playing',
-        roundNumber: nextRoundNum,
-        secret: newSecret,
-        sharedLow: room.min,
-        sharedHigh: room.max,
-        players: resetPlayers,
-        sharedGuesses: [],
-        winnerId: null,
-        winnerUserId: null,
-        winnerAvatar: null,
-        winnerGuesses: null,
-        updatedAt: now
-      };
-
-      await cloud.updateRoom(
-        room.code,
-        {
-          status: 'playing',
-          roundNumber: nextRoundNum,
-          secret: newSecret,
-          sharedLow: room.min,
-          sharedHigh: room.max,
-          players: resetPlayers,
-          sharedGuesses: [],
-          winnerId: null,
-          winnerUserId: null,
-          winnerAvatar: null,
-          winnerGuesses: null,
-          updatedAt: now
-        },
-        nextRoom
-      );
-
-      startBotLoopIfHost();
-    }
-
-    function leaveCurrentMatchCleanup() {
-      stopBotLoop();
-      hideJoiningModal();
-      if (state.roomUnsub) {
-        state.roomUnsub();
-        state.roomUnsub = null;
-      }
-      state.isRoomHost = false;
-      state.roomCode = null;
-      state.roomState = null;
-      state.soloGame = null;
-      state.activeMode = null;
-    }
-
-    document.getElementById('btn-arena-exit').addEventListener('click', () => {
-      audio.playClick();
-      leaveCurrentMatchCleanup();
-      showView('view-hub');
-    });
-
-    document.getElementById('btn-results-hub').addEventListener('click', () => {
-      audio.playClick();
-      leaveCurrentMatchCleanup();
-      showView('view-hub');
-    });
-
-    /* ===================================================================
-       15. BOOT APPLICATION ON WINDOW LOAD
+       16. BOOT APPLICATION ON WINDOW LOAD
        =================================================================== */
     window.addEventListener('load', async () => {
       loadSavedProfile();
