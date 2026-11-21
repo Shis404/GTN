@@ -365,6 +365,8 @@
       background: rgba(5, 10, 24, 0.65);
       border: 1.5px solid rgba(255, 255, 255, 0.16);
       color: #ffffff;
+      min-width: 0;
+      max-width: 100%;
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
 
@@ -689,7 +691,7 @@
       <!-- Primary Multiplayer Cards -->
       <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
         <!-- Prominent JOIN WITH CODE Card -->
-        <div class="md:col-span-5 glass-panel rounded-3xl p-6 flex flex-col justify-between border-2" style="border-color: var(--accent-primary);">
+        <div class="md:col-span-5 min-w-0 glass-panel rounded-3xl p-6 flex flex-col justify-between border-2" style="border-color: var(--accent-primary);">
           <div>
             <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/10 text-[11px] font-extrabold uppercase tracking-wider mb-3" style="color: var(--accent-primary);">
               🎟️ Play With Friends
@@ -702,7 +704,7 @@
             <div>
               <input id="input-join-code" type="text" maxlength="5" autocomplete="off"
                      autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="XXXXX"
-                     class="arcade-input w-full rounded-2xl px-3 py-3.5 text-center font-mono-num text-2xl sm:text-3xl font-extrabold uppercase tracking-[0.35em]" />
+                     class="arcade-input w-full min-w-0 rounded-2xl px-3 py-3.5 text-center font-mono-num text-xl sm:text-2xl lg:text-3xl font-extrabold uppercase tracking-[0.22em] sm:tracking-[0.32em]" />
               <div id="join-code-validation" class="text-[11px] font-bold text-slate-400 text-center mt-1.5">
                 Enter 5 letters/numbers (e.g. K7M9P)
               </div>
@@ -716,7 +718,7 @@
 
         <!-- CREATE ONLINE ROOM Card -->
         <button id="btn-hub-create" type="button"
-                class="md:col-span-4 glass-panel rounded-3xl p-6 text-left flex flex-col justify-between group hover:-translate-y-1 transition-all border border-white/15 hover:border-cyan-400/60">
+                class="md:col-span-4 min-w-0 glass-panel rounded-3xl p-6 text-left flex flex-col justify-between group hover:-translate-y-1 transition-all border border-white/15 hover:border-cyan-400/60">
           <div>
             <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl mb-4 shadow-md"
                  style="background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));">
@@ -735,7 +737,7 @@
 
         <!-- SOLO QUICK PLAY Card -->
         <button id="btn-hub-solo" type="button"
-                class="md:col-span-3 glass-panel rounded-3xl p-6 text-left flex flex-col justify-between group hover:-translate-y-1 transition-all border border-white/15 hover:border-pink-400/60">
+                class="md:col-span-3 min-w-0 glass-panel rounded-3xl p-6 text-left flex flex-col justify-between group hover:-translate-y-1 transition-all border border-white/15 hover:border-pink-400/60">
           <div>
             <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl mb-4 bg-white/10 border border-white/15">
               🎯
@@ -934,10 +936,10 @@
         </div>
 
         <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-          <div class="relative flex-1 flex flex-wrap sm:flex-nowrap items-center gap-2">
+          <div class="relative flex-1 min-w-0 flex flex-wrap sm:flex-nowrap items-center gap-2">
             <input id="lobby-custom-secret-input" type="text" inputmode="numeric" pattern="[0-9-]*"
                    autocomplete="off" placeholder="Enter secret number..."
-                   class="arcade-input secret-masked w-full sm:flex-1 rounded-2xl px-4 py-3 font-mono-num text-lg font-extrabold" />
+                   class="arcade-input secret-masked w-full min-w-0 sm:flex-1 rounded-2xl px-4 py-3 font-mono-num text-lg font-extrabold" />
             <div class="flex items-center gap-2 w-full sm:w-auto">
               <button id="btn-lobby-secret-toggle" type="button" class="btn-glass flex-1 sm:flex-none px-3.5 py-3 rounded-2xl text-xs font-extrabold shrink-0">
                 👁️ Show
@@ -976,7 +978,7 @@
       <!-- 2-Column Lobby Body: Left = Player Roster & Role Transfer, Right = Round Settings -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
         <!-- Left Column (5 cols): Live Player Roster + Let Set Secret / Make Host + Bots -->
-        <div class="lg:col-span-5 glass-panel rounded-3xl p-5 flex flex-col justify-between space-y-4">
+        <div class="lg:col-span-5 min-w-0 glass-panel rounded-3xl p-5 flex flex-col justify-between space-y-4">
           <div>
             <div class="flex items-center justify-between mb-3">
               <span class="text-xs font-extrabold uppercase tracking-wider text-slate-200">
@@ -1007,7 +1009,7 @@
         </div>
 
         <!-- Right Column (7 cols): Round Settings (Editable by Room Admin, Live Preview for Guests) -->
-        <div class="lg:col-span-7 glass-panel rounded-3xl p-5 space-y-4">
+        <div class="lg:col-span-7 min-w-0 glass-panel rounded-3xl p-5 space-y-4">
           <div class="flex items-center justify-between border-b border-white/10 pb-2.5">
             <div>
               <h3 class="font-display text-lg font-bold" id="lobby-settings-heading">Round 1 Settings</h3>
@@ -1185,9 +1187,9 @@
       </div>
 
       <!-- Main 2-Column Arena Layout -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         <!-- Left Column (7 cols): Dynamic Range Bar + Proximity Radar + Controls -->
-        <div class="lg:col-span-7 glass-panel rounded-3xl p-5 sm:p-6 flex flex-col justify-between space-y-5">
+        <div class="lg:col-span-7 min-w-0 glass-panel rounded-3xl p-4 sm:p-6 flex flex-col justify-between space-y-5 overflow-hidden">
           <!-- Live Dynamic Visual Range Bar -->
           <div>
             <div class="flex items-center justify-between text-xs font-bold mb-2">
@@ -1220,12 +1222,12 @@
           </div>
 
           <!-- Number Input & Quick-Adjust + Touch Numpad Controls -->
-          <div id="arena-controls-wrapper" class="space-y-2.5">
-            <div class="flex items-center gap-2">
+          <div id="arena-controls-wrapper" class="space-y-2.5 min-w-0">
+            <div class="flex items-stretch gap-2 min-w-0">
               <input id="input-guess-number" type="number" inputmode="numeric" placeholder="?"
-                     class="arcade-input flex-1 rounded-2xl py-3.5 px-4 text-center font-mono-num text-3xl sm:text-4xl font-extrabold tracking-wider" />
+                     class="arcade-input flex-1 min-w-0 w-full rounded-2xl py-3 sm:py-3.5 px-3 sm:px-4 text-center font-mono-num text-2xl sm:text-4xl font-extrabold tracking-wider" />
               <button id="btn-toggle-numpad" type="button" title="Toggle On-Screen Touch Numpad"
-                      class="btn-glass px-3 py-3.5 rounded-2xl text-xs font-extrabold shrink-0 flex flex-col items-center justify-center gap-0.5">
+                      class="btn-glass px-3 py-3 rounded-2xl text-xs font-extrabold shrink-0 flex flex-col items-center justify-center gap-0.5">
                 <span class="text-base leading-none">🔢</span>
                 <span id="label-toggle-numpad" class="text-[10px] uppercase tracking-wider">Hide Pad</span>
               </button>
@@ -1283,7 +1285,7 @@
         </div>
 
         <!-- Right Column (5 cols): Live Guess History & Proximity Feed -->
-        <div class="lg:col-span-5 glass-panel rounded-3xl p-5 flex flex-col justify-between space-y-3">
+        <div class="lg:col-span-5 min-w-0 glass-panel rounded-3xl p-4 sm:p-5 flex flex-col justify-between space-y-3">
           <div class="flex items-center justify-between border-b border-white/10 pb-2.5">
             <h3 id="history-feed-title" class="font-display text-base sm:text-lg font-bold">Your Guess History</h3>
             <span id="history-feed-count" class="font-mono-num text-xs font-extrabold px-2.5 py-0.5 rounded-lg bg-black/45 text-slate-300">
